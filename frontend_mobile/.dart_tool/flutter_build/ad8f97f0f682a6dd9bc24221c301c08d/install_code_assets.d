@@ -1,0 +1,1 @@
+ /home/maig/TFG/frontend_mobile/.dart_tool/flutter_build/ad8f97f0f682a6dd9bc24221c301c08d/native_assets.json: 
