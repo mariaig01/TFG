@@ -1,0 +1,151 @@
+-- Crear tipo ENUM para estaciones
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'estacion_enum') THEN
+        CREATE TYPE estacion_enum AS ENUM ('Primavera', 'Verano', 'Otoño', 'Invierno');
+    END IF;
+END $$;
+
+-- Tabla usuarios
+CREATE TABLE usuarios (
+    id SERIAL PRIMARY KEY,
+    nombre VARCHAR(50),
+    apellido VARCHAR(50),
+    email VARCHAR(100) UNIQUE,
+    contraseña VARCHAR(255),
+    fecha_registro TIMESTAMP,
+    foto_perfil VARCHAR(255),
+    bio TEXT,
+    verificado BOOLEAN,
+    rol VARCHAR(20),
+    token VARCHAR(255),
+    reset_token VARCHAR(255),
+    reset_token_expiration TIMESTAMP,
+    fecha_modificacion TIMESTAMP
+);
+
+-- Tabla categorias
+CREATE TABLE categorias (
+    id SERIAL PRIMARY KEY,
+    nombre VARCHAR(100) UNIQUE NOT NULL
+);
+
+-- Tabla prendas
+CREATE TABLE prendas (
+    id SERIAL PRIMARY KEY,
+    id_usuario INT REFERENCES usuarios(id) ON DELETE CASCADE,
+    nombre VARCHAR(100),
+    descripcion TEXT,
+    precio DECIMAL(10,2),
+    talla VARCHAR(10),
+    color VARCHAR(30),
+    imagen_url VARCHAR(255),
+    fecha_agregado TIMESTAMP,
+    fecha_modificacion TIMESTAMP
+);
+
+-- Tabla preferencias
+CREATE TABLE preferencias (
+    id SERIAL PRIMARY KEY,
+    id_usuario INT UNIQUE REFERENCES usuarios(id) ON DELETE CASCADE,
+    tallas TEXT[],
+    colores TEXT[],
+    otras_preferencias TEXT
+);
+
+-- Tabla publicaciones
+CREATE TABLE publicaciones (
+    id SERIAL PRIMARY KEY,
+    id_usuario INT REFERENCES usuarios(id) ON DELETE CASCADE,
+    contenido TEXT,
+    imagen_url VARCHAR(255),
+    fecha_publicacion TIMESTAMP
+);
+
+-- Tabla comentarios
+CREATE TABLE comentarios (
+    id SERIAL PRIMARY KEY,
+    id_publicacion INT REFERENCES publicaciones(id) ON DELETE CASCADE,
+    id_usuario INT REFERENCES usuarios(id) ON DELETE CASCADE,
+    texto TEXT,
+    fecha_comentario TIMESTAMP
+);
+
+-- Tabla mensajes
+CREATE TABLE mensajes (
+    id SERIAL PRIMARY KEY,
+    id_emisor INT REFERENCES usuarios(id) ON DELETE CASCADE,
+    id_receptor INT REFERENCES usuarios(id) ON DELETE CASCADE,
+    mensaje TEXT,
+    id_publicacion INT REFERENCES publicaciones(id),
+    fecha_envio TIMESTAMP,
+    estado VARCHAR(20)
+);
+
+-- Tabla grupos
+CREATE TABLE grupos (
+    id SERIAL PRIMARY KEY,
+    nombre VARCHAR(100),
+    descripcion TEXT,
+    creador INT REFERENCES usuarios(id) ON DELETE SET NULL,
+    fecha_creacion TIMESTAMP
+);
+
+-- Tabla favoritos
+CREATE TABLE favoritos (
+    id SERIAL PRIMARY KEY,
+    id_usuario INT REFERENCES usuarios(id) ON DELETE CASCADE,
+    id_prenda INT REFERENCES prendas(id),
+    id_publicacion INT REFERENCES publicaciones(id),
+    fecha_agregado TIMESTAMP
+);
+
+-- Tabla seguimientos
+CREATE TABLE seguimientos (
+    id SERIAL PRIMARY KEY,
+    id_seguidor INT REFERENCES usuarios(id) ON DELETE CASCADE,
+    id_seguido INT REFERENCES usuarios(id) ON DELETE CASCADE,
+    fecha_inicio TIMESTAMP,
+    tipo VARCHAR(20)
+);
+
+-- Tabla likes
+CREATE TABLE likes (
+    id SERIAL PRIMARY KEY,
+    id_publicacion INT REFERENCES publicaciones(id) ON DELETE CASCADE,
+    id_usuario INT REFERENCES usuarios(id) ON DELETE CASCADE,
+    fecha_creacion TIMESTAMP
+);
+
+-- Tabla grupo_usuarios
+CREATE TABLE grupo_usuarios (
+    id SERIAL PRIMARY KEY,
+    id_grupo INT REFERENCES grupos(id) ON DELETE CASCADE,
+    id_usuario INT REFERENCES usuarios(id) ON DELETE CASCADE,
+    rol VARCHAR(20),
+    fecha_ingreso TIMESTAMP
+);
+
+-- Tabla mensajes_grupo
+CREATE TABLE mensajes_grupo (
+    id SERIAL PRIMARY KEY,
+    id_grupo INT REFERENCES grupos(id) ON DELETE CASCADE,
+    id_usuario INT REFERENCES usuarios(id) ON DELETE CASCADE,
+    mensaje TEXT,
+    fecha_envio TIMESTAMP
+);
+
+-- Tabla preferencias_categorias
+CREATE TABLE preferencias_categorias (
+    preferencias_id INT REFERENCES preferencias(id) ON DELETE CASCADE,
+    categoria_id INT REFERENCES categorias(id) ON DELETE CASCADE,
+    estacion estacion_enum NOT NULL,
+    PRIMARY KEY (preferencias_id, categoria_id)
+);
+
+-- Tabla prendas_categorias
+CREATE TABLE prendas_categorias (
+    prenda_id INT REFERENCES prendas(id) ON DELETE CASCADE,
+    categoria_id INT REFERENCES categorias(id) ON DELETE CASCADE,
+    estacion estacion_enum NOT NULL,
+    PRIMARY KEY (prenda_id, categoria_id)
+);
