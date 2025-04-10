@@ -8,6 +8,7 @@ END $$;
 -- Tabla usuarios
 CREATE TABLE usuarios (
     id SERIAL PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
     nombre VARCHAR(50),
     apellido VARCHAR(50),
     email VARCHAR(100) UNIQUE,
@@ -58,7 +59,9 @@ CREATE TABLE publicaciones (
     id_usuario INT REFERENCES usuarios(id) ON DELETE CASCADE,
     contenido TEXT,
     imagen_url VARCHAR(255),
-    fecha_publicacion TIMESTAMP
+    fecha_publicacion TIMESTAMP,
+    visibilidad VARCHAR(20) DEFAULT 'publico'
+        CHECK (visibilidad IN ('publico', 'privado', 'seguidores', 'amigos'))
 );
 
 -- Tabla comentarios
