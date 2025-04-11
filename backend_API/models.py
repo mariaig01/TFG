@@ -76,3 +76,13 @@ class Post(db.Model):
     usuario = db.relationship('User', backref='publicaciones')
 
 
+class Seguimiento(db.Model):
+    __tablename__ = 'seguimientos'
+
+    id = db.Column(db.Integer, primary_key=True)
+    id_seguidor = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
+    id_seguido = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
+    tipo = db.Column(db.String(20))  # 'seguidor' o 'amigo'
+
+
+
