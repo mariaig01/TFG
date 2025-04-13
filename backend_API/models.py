@@ -1,6 +1,8 @@
 from flask_login import UserMixin
 from sqlalchemy.sql import func
 from backend_API.extensions import db
+from datetime import datetime
+
 
 
 class User(db.Model, UserMixin):
@@ -69,7 +71,7 @@ class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     id_usuario = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='CASCADE'), nullable=False)
     contenido = db.Column(db.Text, nullable=False)
-    imagen_url = db.Column(db.String(255))
+    imagen_url = db.Column(db.String(255),nullable=False)
     fecha_publicacion = db.Column(db.DateTime(timezone=True), default=func.now())
     visibilidad = db.Column(db.String(20), nullable=False, default='publico')
 
@@ -83,6 +85,21 @@ class Seguimiento(db.Model):
     id_seguidor = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
     id_seguido = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
     tipo = db.Column(db.String(20))  # 'seguidor' o 'amigo'
+    estado = db.Column(db.String(20))  # 'pendiente' o 'aceptada'
+
+    # Relaciones opcionales
+    seguidor = db.relationship('User', foreign_keys=[id_seguidor], backref='seguidos')
+    seguido = db.relationship('User', foreign_keys=[id_seguido], backref='seguidores')
 
 
+class Comentario(db.Model):
+    __tablename__ = 'comentarios'
 
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    id_publicacion = db.Column(db.Integer, db.ForeignKey('publicaciones.id', ondelete="CASCADE"), nullable=False)
+    id_usuario = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete="CASCADE"), nullable=False)
+    texto = db.Column(db.Text, nullable=False)
+    fecha_comentario = db.Column(db.DateTime, default=datetime.utcnow)
+
+    usuario = db.relationship('User', backref='comentarios')
+    publicacion = db.relationship('Post', backref='comentarios')

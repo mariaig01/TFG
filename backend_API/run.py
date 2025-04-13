@@ -10,7 +10,7 @@ from backend_API.routes.posts import posts_bp
 
 
 def create_app():
-    app = Flask(__name__, static_folder='static')
+    app = Flask(__name__, static_folder='app/static')
     app.config.from_object(Config)
 
     # Inicializa extensiones

@@ -1,13 +1,11 @@
 import os
 import uuid
-from flask import Blueprint, request, jsonify, send_file, send_from_directory, current_app
+from flask import Blueprint, request, jsonify, send_from_directory, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from io import BytesIO
 from werkzeug.utils import secure_filename
 
 from backend_API.extensions import db
-from backend_API.models import Post, User, Seguimiento
-
+from backend_API.models import Post, User, Seguimiento, Comentario
 
 posts_bp = Blueprint('posts', __name__, url_prefix='/posts')
 
@@ -15,7 +13,7 @@ posts_bp = Blueprint('posts', __name__, url_prefix='/posts')
 @posts_bp.route('/api/create-mobile', methods=['POST'])
 @jwt_required()
 def crear_post_mobile():
-    """Crear publicación desde Flutter usando JWT con imagen"""
+    """Crear publicación desde Flutter usando JWT con imagen obligatoria"""
     usuario_id = int(get_jwt_identity())
 
     contenido = request.form.get('contenido', '').strip()
@@ -32,40 +30,39 @@ def crear_post_mobile():
     if visibilidad not in ['publico', 'privado', 'seguidores', 'amigos']:
         return jsonify({'error': 'Visibilidad no válida'}), 400
 
-    imagen_url = None
+    if not imagen_file:
+        return jsonify({'error': 'La imagen es obligatoria'}), 400
 
-    if imagen_file:
-        try:
-            # Validar tipo MIME
-            ext = imagen_file.filename.rsplit('.', 1)[-1].lower()
-            if ext not in ['jpg', 'jpeg', 'png', 'gif']:
-                return jsonify({'error': 'Extensión de imagen no válida'}), 400
+    try:
+        # Validar extensión
+        ext = imagen_file.filename.rsplit('.', 1)[-1].lower()
+        if ext not in ['jpg', 'jpeg', 'png', 'gif']:
+            return jsonify({'error': 'Extensión de imagen no válida'}), 400
 
-            # Validar tamaño (máximo 5MB)
-            imagen_file.seek(0, os.SEEK_END)
-            file_size = imagen_file.tell()
-            imagen_file.seek(0)
+        # Validar tamaño (máximo 5MB)
+        imagen_file.seek(0, os.SEEK_END)
+        file_size = imagen_file.tell()
+        imagen_file.seek(0)
 
-            if file_size > 5 * 1024 * 1024:
-                return jsonify({'error': 'La imagen excede el tamaño máximo (5 MB)'}), 400
+        if file_size > 5 * 1024 * 1024:
+            return jsonify({'error': 'La imagen excede el tamaño máximo (5 MB)'}), 400
 
-            # Crear nombre seguro y único
-            filename = secure_filename(imagen_file.filename)
-            ext = filename.rsplit('.', 1)[-1].lower()
-            unique_name = f"{uuid.uuid4().hex}.{ext}"
+        # Crear nombre seguro y único
+        filename = secure_filename(imagen_file.filename)
+        unique_name = f"{uuid.uuid4().hex}.{ext}"
 
-            # Ruta de destino
-            upload_path = os.path.join('app', 'static', 'uploads')
-            os.makedirs(upload_path, exist_ok=True)
+        # Ruta de destino
+        upload_path = os.path.join(current_app.root_path, 'static', 'uploads')
+        os.makedirs(upload_path, exist_ok=True)
 
-            image_path = os.path.join(upload_path, unique_name)
-            imagen_file.save(image_path)
+        image_path = os.path.join(upload_path, unique_name)
+        imagen_file.save(image_path)
 
-            # URL relativa accesible por el frontend
-            imagen_url = f"/posts/uploads/{unique_name}"
+        # URL accesible desde Flutter
+        imagen_url = f"/posts/uploads/{unique_name}"
 
-        except Exception as e:
-            return jsonify({'error': f'Error al guardar imagen: {str(e)}'}), 500
+    except Exception as e:
+        return jsonify({'error': f'Error al guardar imagen: {str(e)}'}), 500
 
     # Crear publicación
     nueva_post = Post(
@@ -79,6 +76,54 @@ def crear_post_mobile():
     db.session.commit()
 
     return jsonify({'message': 'Publicación creada con éxito'}), 201
+
+@posts_bp.route('/api/feed', methods=['GET'])
+@jwt_required()
+def feed_general():
+    user_id = int(get_jwt_identity())
+
+    # Seguidos
+    seguidos_subq = db.session.query(Seguimiento.id_seguido).filter(
+        Seguimiento.id_seguidor == user_id,
+        Seguimiento.tipo == 'seguidor'
+    ).subquery()
+
+    publicaciones_seguidos = Post.query.join(User).filter(
+        Post.id_usuario.in_(seguidos_subq),
+        Post.visibilidad.in_(['publico', 'seguidores'])
+    )
+
+    # Amigos
+    amigos_subq = db.session.query(Seguimiento.id_seguidor).filter(
+        Seguimiento.id_seguido == user_id,
+        Seguimiento.tipo == 'amigo',
+        Seguimiento.estado == 'aceptada'
+    ).union(
+        db.session.query(Seguimiento.id_seguido).filter(
+            Seguimiento.id_seguidor == user_id,
+            Seguimiento.tipo == 'amigo',
+            Seguimiento.estado == 'aceptada'
+        )
+    ).subquery()
+
+    publicaciones_amigos = Post.query.join(User).filter(
+        Post.id_usuario.in_(amigos_subq),
+        Post.visibilidad.in_(['publico', 'seguidores', 'amigos'])
+    )
+
+    publicaciones = publicaciones_seguidos.union(publicaciones_amigos).order_by(Post.fecha_publicacion.desc()).all()
+
+    return jsonify({
+        "posts": [{
+            'id': p.id,
+            'contenido': p.contenido,
+            'imagen_url': f"http://192.168.1.43:5000{p.imagen_url}" if p.imagen_url else None,
+            'fecha': p.fecha_publicacion.isoformat(),
+            'usuario': p.usuario.username,
+            'foto_perfil': p.usuario.foto_perfil
+        } for p in publicaciones]
+    }), 200
+
 
 
 @posts_bp.route('/api/mis-publicaciones', methods=['GET'])
@@ -144,48 +189,44 @@ def publicaciones_amigos():
     } for p in publicaciones]), 200
 
 
-@posts_bp.route('/api/feed', methods=['GET'])
-@jwt_required()
-def feed_general():
-    user_id = int(get_jwt_identity())
 
-    # Seguidos
-    seguidos_subq = db.session.query(Seguimiento.id_seguido).filter(
-        Seguimiento.id_seguidor == user_id,
-        Seguimiento.tipo == 'seguidor'
-    ).subquery()
-
-    publicaciones_seguidos = Post.query.join(User).filter(
-        Post.id_usuario.in_(seguidos_subq),
-        Post.visibilidad.in_(['publico', 'seguidores'])
-    )
-
-    # Amigos
-    amigos_subq = db.session.query(Seguimiento.id_seguido).filter(
-        Seguimiento.id_seguidor == user_id,
-        Seguimiento.tipo == 'amigo'
-    ).subquery()
-
-    publicaciones_amigos = Post.query.join(User).filter(
-        Post.id_usuario.in_(amigos_subq),
-        Post.visibilidad.in_(['publico', 'seguidores', 'amigos'])
-    )
-
-    # Unir resultados, sin duplicar
-    publicaciones = publicaciones_seguidos.union(publicaciones_amigos).order_by(Post.fecha_publicacion.desc()).all()
-
-    return jsonify({
-        "posts": [{
-            'id': p.id,
-            'contenido': p.contenido,
-            'imagen_url': f"http://192.168.1.43:5000{p.imagen_url}" if p.imagen_url else None,
-            'fecha': p.fecha_publicacion.isoformat(),
-            'usuario': p.usuario.username,
-            'foto_perfil': p.usuario.foto_perfil  # solo si lo necesitas
-        } for p in publicaciones]
-    }), 200
 
 @posts_bp.route('/uploads/<filename>')
 def serve_uploaded_image(filename):
     uploads_dir = os.path.join(current_app.root_path, 'static', 'uploads')
     return send_from_directory(uploads_dir, filename)
+
+
+@posts_bp.route('/api/<int:post_id>/comments', methods=['GET'])
+@jwt_required()
+def obtener_comentarios(post_id):
+    comentarios = Comentario.query.filter_by(id_publicacion=post_id).order_by(Comentario.fecha_comentario.desc()).all()
+    return jsonify([{
+        'id': c.id,
+        'post_id': c.id_publicacion,
+        'autor': c.usuario.username,
+        'contenido': c.texto,
+        'fecha': c.fecha_comentario.isoformat()
+    } for c in comentarios]), 200
+
+
+@posts_bp.route('/api/<int:post_id>/comments', methods=['POST'])
+@jwt_required()
+def crear_comentario(post_id):
+    user_id = int(get_jwt_identity())
+    data = request.get_json()
+
+    texto = data.get('contenido', '').strip()
+    if not texto:
+        return jsonify({'error': 'El comentario no puede estar vacío'}), 400
+
+    nuevo_comentario = Comentario(
+        id_publicacion=post_id,
+        id_usuario=user_id,
+        texto=texto
+    )
+
+    db.session.add(nuevo_comentario)
+    db.session.commit()
+
+    return jsonify({'message': 'Comentario creado exitosamente'}), 201
