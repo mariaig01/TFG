@@ -71,11 +71,14 @@ class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     id_usuario = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='CASCADE'), nullable=False)
     contenido = db.Column(db.Text, nullable=False)
-    imagen_url = db.Column(db.String(255),nullable=False)
+    imagen_url = db.Column(db.String(255), nullable=False)
     fecha_publicacion = db.Column(db.DateTime(timezone=True), default=func.now())
     visibilidad = db.Column(db.String(20), nullable=False, default='publico')
 
     usuario = db.relationship('User', backref='publicaciones')
+
+    # 👉 Relación con los likes
+    likes = db.relationship('Like', backref='post', cascade='all, delete-orphan')
 
 
 class Seguimiento(db.Model):
@@ -103,3 +106,34 @@ class Comentario(db.Model):
 
     usuario = db.relationship('User', backref='comentarios')
     publicacion = db.relationship('Post', backref='comentarios')
+
+
+class Like(db.Model):
+    __tablename__ = 'likes'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    id_publicacion = db.Column(db.Integer, db.ForeignKey('publicaciones.id', ondelete="CASCADE"), nullable=False)
+    id_usuario = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete="CASCADE"), nullable=False)
+    fecha_creacion = db.Column(db.DateTime, default=datetime.utcnow)
+
+    usuario = db.relationship('User', backref='likes')
+
+    __table_args__ = (
+        db.UniqueConstraint('id_usuario', 'id_publicacion', name='unique_like'),
+    )
+
+class Mensaje(db.Model):
+    __tablename__ = 'mensajes'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    id_emisor = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='CASCADE'), nullable=False)
+    id_receptor = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='CASCADE'), nullable=False)
+    mensaje = db.Column(db.Text, nullable=True)
+    id_publicacion = db.Column(db.Integer, db.ForeignKey('publicaciones.id'), nullable=True)
+    fecha_envio = db.Column(db.DateTime, default=datetime.utcnow)
+    estado = db.Column(db.String(20), default='pendiente')
+
+    # Relaciones opcionales
+    emisor = db.relationship('User', foreign_keys=[id_emisor], backref='mensajes_enviados')
+    receptor = db.relationship('User', foreign_keys=[id_receptor], backref='mensajes_recibidos')
+    publicacion = db.relationship('Post', backref='mensajes')

@@ -6,6 +6,7 @@ from backend_API.extensions import db
 from backend_API.routes.auth import auth_bp
 from backend_API.extensions import jwt
 from backend_API.routes.posts import posts_bp
+from backend_API.extensions import mail
 
 
 
@@ -16,6 +17,7 @@ def create_app():
     # Inicializa extensiones
     db.init_app(app)
     jwt.init_app(app)
+    mail.init_app(app)
 
     # Registra blueprints
     app.register_blueprint(auth_bp)

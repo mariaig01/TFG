@@ -5,7 +5,10 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.utils import secure_filename
 
 from backend_API.extensions import db
-from backend_API.models import Post, User, Seguimiento, Comentario
+from backend_API.models import Post, User, Seguimiento, Comentario, Like, Mensaje
+from sqlalchemy import select, union_all
+from datetime import datetime
+
 
 posts_bp = Blueprint('posts', __name__, url_prefix='/posts')
 
@@ -82,32 +85,35 @@ def crear_post_mobile():
 def feed_general():
     user_id = int(get_jwt_identity())
 
-    # Seguidos
+    # Subquery de seguidos
     seguidos_subq = db.session.query(Seguimiento.id_seguido).filter(
         Seguimiento.id_seguidor == user_id,
         Seguimiento.tipo == 'seguidor'
     ).subquery()
 
     publicaciones_seguidos = Post.query.join(User).filter(
-        Post.id_usuario.in_(seguidos_subq),
+        Post.id_usuario.in_(select(seguidos_subq.c.id_seguido)),
         Post.visibilidad.in_(['publico', 'seguidores'])
     )
 
-    # Amigos
-    amigos_subq = db.session.query(Seguimiento.id_seguidor).filter(
+    # Subqueries individuales para amigos aceptados (bidireccional)
+    amigos1 = db.session.query(Seguimiento.id_seguidor).filter(
         Seguimiento.id_seguido == user_id,
         Seguimiento.tipo == 'amigo',
         Seguimiento.estado == 'aceptada'
-    ).union(
-        db.session.query(Seguimiento.id_seguido).filter(
-            Seguimiento.id_seguidor == user_id,
-            Seguimiento.tipo == 'amigo',
-            Seguimiento.estado == 'aceptada'
-        )
-    ).subquery()
+    )
+
+    amigos2 = db.session.query(Seguimiento.id_seguido).filter(
+        Seguimiento.id_seguidor == user_id,
+        Seguimiento.tipo == 'amigo',
+        Seguimiento.estado == 'aceptada'
+    )
+
+    # Unimos ambas listas de IDs manualmente
+    amigos_ids = [row[0] for row in amigos1.union_all(amigos2).all()]
 
     publicaciones_amigos = Post.query.join(User).filter(
-        Post.id_usuario.in_(amigos_subq),
+        Post.id_usuario.in_(amigos_ids),
         Post.visibilidad.in_(['publico', 'seguidores', 'amigos'])
     )
 
@@ -117,12 +123,15 @@ def feed_general():
         "posts": [{
             'id': p.id,
             'contenido': p.contenido,
-            'imagen_url': f"http://192.168.1.43:5000{p.imagen_url}" if p.imagen_url else None,
+            'imagen_url': f"http://192.168.1.42:5000{p.imagen_url}" if p.imagen_url else None,
             'fecha': p.fecha_publicacion.isoformat(),
             'usuario': p.usuario.username,
-            'foto_perfil': p.usuario.foto_perfil
+            'foto_perfil': p.usuario.foto_perfil,
+            'likes_count': len(p.likes),
+            'ha_dado_like': any(l.id_usuario == user_id for l in p.likes)
         } for p in publicaciones]
     }), 200
+
 
 
 
@@ -135,7 +144,7 @@ def publicaciones_propias():
     return jsonify([{
         'id': p.id,
         'contenido': p.contenido,
-        'imagen_url': f"http://192.168.1.43:5000{p.imagen_url}" if p.imagen_url else None,
+        'imagen_url': f"http://192.168.1.42:5000{p.imagen_url}" if p.imagen_url else None,
         'fecha': p.fecha_publicacion.isoformat(),
         'usuario': p.usuario.username
     } for p in publicaciones]), 200
@@ -159,7 +168,7 @@ def publicaciones_seguidos():
     return jsonify([{
         'id': p.id,
         'contenido': p.contenido,
-        'imagen_url': f"http://192.168.1.43:5000{p.imagen_url}" if p.imagen_url else None,
+        'imagen_url': f"http://192.168.1.42:5000{p.imagen_url}" if p.imagen_url else None,
         'fecha': p.fecha_publicacion.isoformat(),
         'usuario': p.usuario.username
     } for p in publicaciones]), 200
@@ -183,7 +192,7 @@ def publicaciones_amigos():
     return jsonify([{
         'id': p.id,
         'contenido': p.contenido,
-        'imagen_url': f"http://192.168.1.43:5000{p.imagen_url}" if p.imagen_url else None,
+        'imagen_url': f"http://192.168.1.42:5000{p.imagen_url}" if p.imagen_url else None,
         'fecha': p.fecha_publicacion.isoformat(),
         'usuario': p.usuario.username
     } for p in publicaciones]), 200
@@ -230,3 +239,59 @@ def crear_comentario(post_id):
     db.session.commit()
 
     return jsonify({'message': 'Comentario creado exitosamente'}), 201
+
+
+@posts_bp.route('/api/<int:post_id>/like', methods=['POST'])
+@jwt_required()
+def toggle_like(post_id):
+    user_id = int(get_jwt_identity())
+
+    # Verifica si la publicación existe
+    publicacion = Post.query.get(post_id)
+    if not publicacion:
+        return jsonify({'error': 'Publicación no encontrada'}), 404
+
+    # Comprueba si ya existe un like
+    like_existente = Like.query.filter_by(
+        id_usuario=user_id,
+        id_publicacion=post_id
+    ).first()
+
+    if like_existente:
+        db.session.delete(like_existente)
+        db.session.commit()
+        return jsonify({'message': 'Like eliminado'}), 200
+    else:
+        nuevo_like = Like(
+            id_usuario=user_id,
+            id_publicacion=post_id,
+            fecha_creacion=datetime.utcnow()
+        )
+        db.session.add(nuevo_like)
+        db.session.commit()
+        return jsonify({'message': 'Like añadido'}), 201
+
+
+
+@posts_bp.route('/api/<int:post_id>/enviar', methods=['POST'])
+@jwt_required()
+def enviar_publicacion(post_id):
+    data = request.get_json()
+    user_id = int(get_jwt_identity())
+    id_receptor = data.get('id_receptor')
+    mensaje = data.get('mensaje', '').strip()
+
+    if not id_receptor:
+        return jsonify({'error': 'Receptor no especificado'}), 400
+
+    nuevo_mensaje = Mensaje(
+        id_emisor=user_id,
+        id_receptor=id_receptor,
+        mensaje=mensaje,
+        id_publicacion=post_id
+    )
+
+    db.session.add(nuevo_mensaje)
+    db.session.commit()
+
+    return jsonify({'message': 'Publicación enviada por mensaje'}), 201
