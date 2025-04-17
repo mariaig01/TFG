@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import (
     create_access_token,
@@ -8,10 +8,11 @@ from flask_jwt_extended import (
     decode_token
 )
 from flask_mail import Message
-from datetime import timedelta
+from datetime import timedelta, datetime
 from backend_API.models import User
 from backend_API.extensions import db, mail
 from backend_API.utils.helpers import is_strong_password
+import secrets
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
@@ -155,6 +156,52 @@ def refresh_token():
     identity = get_jwt_identity()
     new_access_token = create_access_token(identity=identity)
     return jsonify(access_token=new_access_token), 200
+
+
+
+
+@auth_bp.route('/forgot-password', methods=['POST'])
+def forgot_password():
+    data = request.get_json()
+    email = data.get('email')
+
+    if not email:
+        return jsonify({"error": "El email es obligatorio"}), 400
+
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({"error": "No existe una cuenta con ese email"}), 404
+
+    # Generar token seguro y fecha de expiración (30 min)
+    token = secrets.token_urlsafe(32)
+    user.reset_token = token
+    user.reset_token_expiration = datetime.utcnow() + timedelta(minutes=30)
+    db.session.commit()
+
+    # Deep link que la app Flutter debe manejar
+    reset_link = f"looksy://reset?token={token}"
+
+    # Preparar y enviar el email directamente
+    subject = "Recuperación de contraseña"
+    body = (
+        f"Hola {user.nombre},\n\n"
+        f"Haz clic en el siguiente enlace para restablecer tu contraseña:\n\n"
+        f"{reset_link}\n\n"
+        f"Este enlace expirará en 30 minutos.\n\n"
+        f"Si no solicitaste este cambio, puedes ignorar este mensaje."
+    )
+
+    try:
+        mensaje = Message(
+            subject=subject,
+            recipients=[user.email],
+            body=body,
+            sender=current_app.config['MAIL_DEFAULT_SENDER']
+        )
+        mail.send(mensaje)
+        return jsonify({"message": "Correo de recuperación enviado"}), 200
+    except Exception as e:
+        return jsonify({"error": f"Error al enviar el correo: {str(e)}"}), 500
 
 
 @auth_bp.route('/reset-password', methods=['POST'])

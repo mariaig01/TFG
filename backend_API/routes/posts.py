@@ -109,7 +109,7 @@ def feed_general():
         Seguimiento.estado == 'aceptada'
     )
 
-    # Unimos ambas listas de IDs manualmente
+    # Unimos ambas listas de IDs
     amigos_ids = [row[0] for row in amigos1.union_all(amigos2).all()]
 
     publicaciones_amigos = Post.query.join(User).filter(
@@ -117,10 +117,26 @@ def feed_general():
         Post.visibilidad.in_(['publico', 'seguidores', 'amigos'])
     )
 
+    # Unimos ambos conjuntos de publicaciones
     publicaciones = publicaciones_seguidos.union(publicaciones_amigos).order_by(Post.fecha_publicacion.desc()).all()
 
-    return jsonify({
-        "posts": [{
+    posts_data = []
+    for p in publicaciones:
+        autor_id = p.id_usuario
+
+        tipo_relacion = ''
+        seguimiento = Seguimiento.query.filter_by(
+            id_seguidor=user_id,
+            id_seguido=autor_id
+        ).first()
+
+        if seguimiento:
+            if seguimiento.tipo == 'amigo' and seguimiento.estado == 'aceptada':
+                tipo_relacion = 'amigo'
+            elif seguimiento.tipo == 'seguidor':
+                tipo_relacion = 'seguido'
+
+        posts_data.append({
             'id': p.id,
             'contenido': p.contenido,
             'imagen_url': f"http://192.168.1.42:5000{p.imagen_url}" if p.imagen_url else None,
@@ -128,9 +144,11 @@ def feed_general():
             'usuario': p.usuario.username,
             'foto_perfil': p.usuario.foto_perfil,
             'likes_count': len(p.likes),
-            'ha_dado_like': any(l.id_usuario == user_id for l in p.likes)
-        } for p in publicaciones]
-    }), 200
+            'ha_dado_like': any(l.id_usuario == user_id for l in p.likes),
+            'tipo_relacion': tipo_relacion
+        })
+
+    return jsonify({"posts": posts_data}), 200
 
 
 
