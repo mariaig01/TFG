@@ -10,8 +10,8 @@ from flask_jwt_extended import (
 from flask_mail import Message
 from datetime import timedelta, datetime
 from backend_API.models import User
-from backend_API.extensions import db, mail
-from backend_API.utils.helpers import is_strong_password
+from backend_API.extensions import db, mail, logs_collection
+from backend_API.utils.helpers import is_strong_password, is_valid_email
 import secrets
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
@@ -52,21 +52,20 @@ def register():
     bio = data.get('bio')
     rol = data.get('rol')
 
-    # Validación de campos obligatorios
     if not username or not email or not nombre or not password:
         return jsonify({"error": "Faltan campos obligatorios"}), 400
 
-    # Buscar usuario existente por email
+    if not is_valid_email(email):
+        return jsonify({"error": "Email no válido"}), 400
+
     existing_user = User.query.filter_by(email=email).first()
     if existing_user:
         if existing_user.verificado:
             return jsonify({"error": "El email ya está registrado"}), 400
         else:
-            # ⚠️ Usuario no verificado → lo borramos para permitir registro nuevo
             db.session.delete(existing_user)
             db.session.commit()
 
-    # También puedes hacer lo mismo con el username si quieres:
     if User.query.filter_by(username=username).first():
         return jsonify({"error": "El nombre de usuario ya está en uso"}), 400
 
@@ -87,9 +86,17 @@ def register():
     db.session.add(nuevo_usuario)
     db.session.commit()
 
+    if logs_collection is not None:
+        logs_collection.insert_one({
+            "evento": "registro",
+            "usuario": email,
+            "timestamp": datetime.utcnow()
+        })
+
     enviar_email_verificacion(nuevo_usuario)
 
     return jsonify({"message": "Usuario creado con éxito. Verifica tu correo."}), 201
+
 
 
 
@@ -115,10 +122,21 @@ def verify_email_mobile():
 
         user.verificado = True
         db.session.commit()
+
+        # Log de verificación
+        if logs_collection is not None:
+            logs_collection.insert_one({
+                "evento": "verificacion_email",
+                "usuario_id": user.id,
+                "email": user.email,
+                "timestamp": datetime.utcnow()
+            })
+
         return jsonify({'message': 'Cuenta verificada correctamente'}), 200
 
     except Exception as e:
         return jsonify({'error': f'Token inválido o expirado: {str(e)}'}), 400
+
 
 
 # Login
@@ -134,19 +152,45 @@ def login():
     user = User.query.filter_by(email=email).first()
 
     if not user or not check_password_hash(user.contraseña, password):
+        # Log de intento fallido
+        if logs_collection is not None:
+            logs_collection.insert_one({
+                "evento": "login_fallido",
+                "usuario": email,
+                "motivo": "Credenciales inválidas",
+                "timestamp": datetime.utcnow()
+            })
         return jsonify({"error": "Credenciales inválidas"}), 401
 
     if not user.verificado:
+        # Log de intento fallido por cuenta no verificada
+        if logs_collection is not None:
+            logs_collection.insert_one({
+                "evento": "login_fallido",
+                "usuario": email,
+                "motivo": "Cuenta no verificada",
+                "timestamp": datetime.utcnow()
+            })
         return jsonify({"error": "Tu cuenta no ha sido verificada. Revisa tu correo."}), 403
 
     access_token = create_access_token(identity=str(user.id))
     refresh_token = create_refresh_token(identity=str(user.id))
+
+    # Log de login exitoso
+    if logs_collection is not None:
+        logs_collection.insert_one({
+            "evento": "login_exitoso",
+            "usuario": email,
+            "usuario_id": user.id,
+            "timestamp": datetime.utcnow()
+        })
 
     return jsonify({
         "message": "Login exitoso",
         "access_token": access_token,
         "refresh_token": refresh_token
     }), 200
+
 
 
 # Refrescar token
@@ -156,8 +200,6 @@ def refresh_token():
     identity = get_jwt_identity()
     new_access_token = create_access_token(identity=identity)
     return jsonify(access_token=new_access_token), 200
-
-
 
 
 @auth_bp.route('/forgot-password', methods=['POST'])
@@ -172,16 +214,13 @@ def forgot_password():
     if not user:
         return jsonify({"error": "No existe una cuenta con ese email"}), 404
 
-    # Generar token seguro y fecha de expiración (30 min)
     token = secrets.token_urlsafe(32)
     user.reset_token = token
     user.reset_token_expiration = datetime.utcnow() + timedelta(minutes=30)
     db.session.commit()
 
-    # Deep link que la app Flutter debe manejar
     reset_link = f"looksy://reset?token={token}"
 
-    # Preparar y enviar el email directamente
     subject = "Recuperación de contraseña"
     body = (
         f"Hola {user.nombre},\n\n"
@@ -199,9 +238,21 @@ def forgot_password():
             sender=current_app.config['MAIL_DEFAULT_SENDER']
         )
         mail.send(mensaje)
+
+        # Log de solicitud de reseteo
+        if logs_collection is not None:
+            logs_collection.insert_one({
+                "evento": "solicitud_reset_password",
+                "usuario_id": user.id,
+                "email": user.email,
+                "timestamp": datetime.utcnow()
+            })
+
         return jsonify({"message": "Correo de recuperación enviado"}), 200
     except Exception as e:
         return jsonify({"error": f"Error al enviar el correo: {str(e)}"}), 500
+
+
 
 
 @auth_bp.route('/reset-password', methods=['POST'])
@@ -213,7 +264,6 @@ def reset_password():
     if not token or not new_password:
         return jsonify({"error": "Token y contraseña son obligatorios"}), 400
 
-    # Buscar el usuario con ese token
     user = User.query.filter_by(reset_token=token).first()
 
     if not user:
@@ -225,10 +275,17 @@ def reset_password():
     if len(new_password) < 7:
         return jsonify({"error": "La contraseña debe tener al menos 7 caracteres"}), 400
 
-    # Hashear y guardar la nueva contraseña
     user.contraseña = generate_password_hash(new_password)
     user.reset_token = None
     user.reset_token_expiration = None
     db.session.commit()
+
+    # Log de reseteo exitoso
+    if logs_collection is not None:
+        logs_collection.insert_one({
+            "evento": "reset_password_exitoso",
+            "usuario_id": user.id,
+            "timestamp": datetime.utcnow()
+        })
 
     return jsonify({"message": "Contraseña actualizada. Ya puedes iniciar sesión."}), 200

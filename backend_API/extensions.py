@@ -38,19 +38,29 @@ csrf = CSRFProtect()
 from flask_limiter.util import get_remote_address
 from flask_limiter import Limiter
 
-# Configure limiter with Redis if available
-# try:
-#     from redis import Redis
-#     redis_client = Redis(host='localhost', port=6379, db=0)
-#     limiter = Limiter(
-#         get_remote_address,
-#         default_limits=["200 per day", "50 per hour"],
-#         storage_uri="redis://localhost:6379"
-#     )
-# except ImportError:
-#     # Fallback to memory storage with warning
-#     limiter = Limiter(
-#         get_remote_address,
-#         default_limits=["200 per day", "50 per hour"]
-#     )
+#Configure limiter with Redis if available
+try:
+    from redis import Redis
+    redis_client = Redis(host='localhost', port=6379, db=0)
+    limiter = Limiter(
+        get_remote_address,
+        default_limits=["200 per day", "50 per hour"],
+        storage_uri="redis://localhost:6379"
+    )
+except ImportError:
+    # Fallback to memory storage with warning
+    limiter = Limiter(
+        get_remote_address,
+        default_limits=["200 per day", "50 per hour"]
+    )
 cors = CORS()
+
+try:
+    from pymongo import MongoClient
+
+    mongo_client = MongoClient("mongodb://localhost:27017/")
+    mongo_db = mongo_client["looksy_db"]
+    logs_collection = mongo_db["logs_actividad"]
+except ImportError:
+    mongo_client = None
+    logs_collection = None

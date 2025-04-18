@@ -4,7 +4,7 @@ from flask import Blueprint, request, jsonify, send_from_directory, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.utils import secure_filename
 
-from backend_API.extensions import db
+from backend_API.extensions import db, logs_collection
 from backend_API.models import Post, User, Seguimiento, Comentario, Like, Mensaje
 from sqlalchemy import select, union_all
 from datetime import datetime
@@ -16,16 +16,12 @@ posts_bp = Blueprint('posts', __name__, url_prefix='/posts')
 @posts_bp.route('/api/create-mobile', methods=['POST'])
 @jwt_required()
 def crear_post_mobile():
-    """Crear publicación desde Flutter usando JWT con imagen obligatoria"""
     usuario_id = int(get_jwt_identity())
 
     contenido = request.form.get('contenido', '').strip()
     visibilidad = request.form.get('visibilidad', 'publico')
     imagen_file = request.files.get('imagen')
 
-    print("→ Contenido:", contenido)
-    print("→ Visibilidad:", visibilidad)
-    print("→ Imagen:", imagen_file.filename if imagen_file else "No imagen")
 
     if not contenido:
         return jsonify({'error': 'El contenido es obligatorio'}), 400
@@ -77,6 +73,16 @@ def crear_post_mobile():
 
     db.session.add(nueva_post)
     db.session.commit()
+
+    if logs_collection is not None:
+        logs_collection.insert_one({
+            "evento": "publicacion_creada",
+            "usuario_id": usuario_id,
+            "contenido": contenido,
+            "visibilidad": visibilidad,
+            "imagen_url": imagen_url,
+            "timestamp": datetime.utcnow()
+        })
 
     return jsonify({'message': 'Publicación creada con éxito'}), 201
 
@@ -256,6 +262,15 @@ def crear_comentario(post_id):
     db.session.add(nuevo_comentario)
     db.session.commit()
 
+    if logs_collection is not None:
+        logs_collection.insert_one({
+            "evento": "comentario_creado",
+            "usuario_id": user_id,
+            "post_id": post_id,
+            "contenido": texto,
+            "timestamp": datetime.utcnow()
+        })
+
     return jsonify({'message': 'Comentario creado exitosamente'}), 201
 
 
@@ -278,6 +293,15 @@ def toggle_like(post_id):
     if like_existente:
         db.session.delete(like_existente)
         db.session.commit()
+
+        if logs_collection is not None:
+            logs_collection.insert_one({
+                "evento": "like_eliminado",
+                "usuario_id": user_id,
+                "post_id": post_id,
+                "timestamp": datetime.utcnow()
+            })
+
         return jsonify({'message': 'Like eliminado'}), 200
     else:
         nuevo_like = Like(
@@ -287,6 +311,15 @@ def toggle_like(post_id):
         )
         db.session.add(nuevo_like)
         db.session.commit()
+
+        if logs_collection is not None:
+            logs_collection.insert_one({
+                "evento": "like_eliminado",
+                "usuario_id": user_id,
+                "post_id": post_id,
+                "timestamp": datetime.utcnow()
+            })
+
         return jsonify({'message': 'Like añadido'}), 201
 
 
@@ -311,5 +344,15 @@ def enviar_publicacion(post_id):
 
     db.session.add(nuevo_mensaje)
     db.session.commit()
+
+    if logs_collection is not None:
+        logs_collection.insert_one({
+            "evento": "publicacion_enviada",
+            "emisor_id": user_id,
+            "receptor_id": id_receptor,
+            "post_id": post_id,
+            "mensaje": mensaje,
+            "timestamp": datetime.utcnow()
+        })
 
     return jsonify({'message': 'Publicación enviada por mensaje'}), 201
