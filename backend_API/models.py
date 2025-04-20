@@ -137,3 +137,84 @@ class Mensaje(db.Model):
     emisor = db.relationship('User', foreign_keys=[id_emisor], backref='mensajes_enviados')
     receptor = db.relationship('User', foreign_keys=[id_receptor], backref='mensajes_recibidos')
     publicacion = db.relationship('Post', backref='mensajes')
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "id_emisor": self.id_emisor,
+            "id_receptor": self.id_receptor,
+            "mensaje": self.mensaje,
+            "fecha_envio": self.fecha_envio.isoformat() if self.fecha_envio else None
+        }
+
+
+class Grupo(db.Model):
+    __tablename__ = 'grupos'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    nombre = db.Column(db.String(100), nullable=False)
+    descripcion = db.Column(db.Text, nullable=True)
+    creador = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='SET NULL'))
+    fecha_creacion = db.Column(db.DateTime, default=datetime.utcnow)
+    imagen = db.Column(db.String(255), nullable=True)
+
+    miembros = db.relationship('GrupoUsuario', back_populates='grupo', cascade="all, delete-orphan")
+    mensajes = db.relationship('MensajeGrupo', back_populates='grupo', cascade="all, delete-orphan")
+
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'nombre': self.nombre,
+            'descripcion': self.descripcion,
+            'creador': self.creador,
+            'fecha_creacion': self.fecha_creacion.isoformat() if self.fecha_creacion else None,
+            'imagen': self.imagen
+        }
+
+
+
+class MensajeGrupo(db.Model):
+    __tablename__ = 'mensajes_grupo'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    id_grupo = db.Column(db.Integer, db.ForeignKey('grupos.id', ondelete='CASCADE'), nullable=False)
+    id_usuario = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='CASCADE'), nullable=False)
+    mensaje = db.Column(db.Text, nullable=False)
+    fecha_envio = db.Column(db.DateTime, default=datetime.utcnow)
+
+    grupo = db.relationship('Grupo', back_populates='mensajes')
+    usuario = db.relationship('User', backref='mensajes_grupo')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'id_grupo': self.id_grupo,
+            'id_usuario': self.id_usuario,
+            'mensaje': self.mensaje,
+            'fecha_envio': self.fecha_envio.isoformat(),
+            'autor': self.usuario.username if self.usuario else "Anónimo"
+        }
+
+
+
+class GrupoUsuario(db.Model):
+    __tablename__ = 'grupo_usuarios'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    id_grupo = db.Column(db.Integer, db.ForeignKey('grupos.id', ondelete='CASCADE'), nullable=False)
+    id_usuario = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='CASCADE'), nullable=False)
+    rol = db.Column(db.String(20), default='miembro')
+    fecha_ingreso = db.Column(db.DateTime, default=datetime.utcnow)
+
+    grupo = db.relationship('Grupo', back_populates='miembros')
+    usuario = db.relationship('User', backref=db.backref('grupos', lazy='dynamic', cascade='all, delete-orphan'))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'id_grupo': self.id_grupo,
+            'id_usuario': self.id_usuario,
+            'rol': self.rol,
+            'fecha_ingreso': self.fecha_ingreso.isoformat()
+        }
