@@ -5,7 +5,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.utils import secure_filename
 
 from backend_API.extensions import db, logs_collection
-from backend_API.models import Post, User, Seguimiento, Comentario, Like, Mensaje
+from backend_API.models import Post, User, Seguimiento, Comentario, Like, Mensaje, MensajeGrupo
 from sqlalchemy import select, union_all
 from datetime import datetime
 
@@ -145,7 +145,7 @@ def feed_general():
         posts_data.append({
             'id': p.id,
             'contenido': p.contenido,
-            'imagen_url': f"http://192.168.1.42:5000{p.imagen_url}" if p.imagen_url else None,
+            'imagen_url': f"{current_app.config['BASE_URL']}{p.imagen_url}" if p.imagen_url else None,
             'fecha': p.fecha_publicacion.isoformat(),
             'usuario': p.usuario.username,
             'foto_perfil': p.usuario.foto_perfil,
@@ -168,7 +168,7 @@ def publicaciones_propias():
     return jsonify([{
         'id': p.id,
         'contenido': p.contenido,
-        'imagen_url': f"http://192.168.1.42:5000{p.imagen_url}" if p.imagen_url else None,
+        'imagen_url': f"{current_app.config['BASE_URL']}{p.imagen_url}" if p.imagen_url else None,
         'fecha': p.fecha_publicacion.isoformat(),
         'usuario': p.usuario.username
     } for p in publicaciones]), 200
@@ -192,7 +192,7 @@ def publicaciones_seguidos():
     return jsonify([{
         'id': p.id,
         'contenido': p.contenido,
-        'imagen_url': f"http://192.168.1.42:5000{p.imagen_url}" if p.imagen_url else None,
+        'imagen_url': f"{current_app.config['BASE_URL']}{p.imagen_url}" if p.imagen_url else None,
         'fecha': p.fecha_publicacion.isoformat(),
         'usuario': p.usuario.username
     } for p in publicaciones]), 200
@@ -216,7 +216,7 @@ def publicaciones_amigos():
     return jsonify([{
         'id': p.id,
         'contenido': p.contenido,
-        'imagen_url': f"http://192.168.1.42:5000{p.imagen_url}" if p.imagen_url else None,
+        'imagen_url': f"{current_app.config['BASE_URL']}{p.imagen_url}" if p.imagen_url else None,
         'fecha': p.fecha_publicacion.isoformat(),
         'usuario': p.usuario.username
     } for p in publicaciones]), 200
@@ -356,3 +356,35 @@ def enviar_publicacion(post_id):
         })
 
     return jsonify({'message': 'Publicación enviada por mensaje'}), 201
+
+@posts_bp.route('/api/<int:post_id>/enviar-grupo/<int:group_id>', methods=['POST'])
+@jwt_required()
+def enviar_publicacion_a_grupo(post_id, group_id):
+    user_id = int(get_jwt_identity())
+    data = request.get_json()
+    mensaje = data.get('mensaje', '').strip()
+
+    # Comprobar que el grupo existe
+    grupo = Grupo.query.get(group_id)
+    if not grupo:
+        return jsonify({'error': 'Grupo no encontrado'}), 404
+
+    # Comprobar que el usuario pertenece al grupo
+    miembro = GrupoUsuario.query.filter_by(id_grupo=group_id, id_usuario=user_id).first()
+    if not miembro:
+        return jsonify({'error': 'No perteneces a este grupo'}), 403
+
+    # Adjuntar el ID de la publicación como parte del mensaje
+    mensaje_con_post = f"📎 Publicación {post_id}\n{mensaje}" if mensaje else f"📎 Publicación {post_id}"
+
+    nuevo_mensaje = MensajeGrupo(
+        mensaje=mensaje_con_post,
+        fecha_envio=datetime.utcnow(),
+        id_usuario=user_id,
+        id_grupo=group_id
+    )
+
+    db.session.add(nuevo_mensaje)
+    db.session.commit()
+
+    return jsonify(nuevo_mensaje.to_dict()), 201

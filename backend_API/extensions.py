@@ -1,18 +1,10 @@
-"""
-Flask extensions initialization module.
 
-This module initializes all Flask extensions used by the application without
-creating circular imports.
-"""
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_mail import Mail
-from flask_login import LoginManager
 from flask_jwt_extended import JWTManager
 from flask_socketio import SocketIO
 from flask_wtf import CSRFProtect
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
 from flask_cors import CORS
 from sqlalchemy import MetaData
 
@@ -30,7 +22,6 @@ db = SQLAlchemy(metadata=metadata)
 
 migrate = Migrate()
 mail = Mail()
-login_manager = LoginManager()
 jwt = JWTManager()
 socketio = SocketIO(cors_allowed_origins="*", async_mode='gevent')
 csrf = CSRFProtect()

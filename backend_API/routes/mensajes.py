@@ -1,8 +1,7 @@
-# routes/mensajes.py
-
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from backend_API.models import db, Mensaje, User, MensajeGrupo, GrupoUsuario
+from backend_API.extensions import socketio
 
 mensajes_bp = Blueprint('mensajes', __name__, url_prefix='/mensajes')
 
@@ -21,7 +20,11 @@ def enviar_mensaje_directo():
     )
     db.session.add(nuevo_mensaje)
     db.session.commit()
+
+    socketio.emit('nuevo_mensaje', nuevo_mensaje.to_dict(), to=str(id_receptor))
+
     return jsonify(nuevo_mensaje.to_dict()), 201
+
 
 @mensajes_bp.route('/directo/<int:otro_usuario_id>', methods=['GET'])
 @jwt_required()
@@ -33,15 +36,7 @@ def obtener_mensajes_directos(otro_usuario_id):
         ((Mensaje.id_emisor == otro_usuario_id) & (Mensaje.id_receptor == usuario_actual_id))
     ).order_by(Mensaje.fecha_envio.asc()).all()
 
-    return jsonify([{
-        'id': m.id,
-        'id_emisor': m.id_emisor,
-        'id_receptor': m.id_receptor,
-        'mensaje': m.mensaje,
-        'fecha_envio': m.fecha_envio.isoformat()
-    } for m in mensajes]), 200
-
-
+    return jsonify([m.to_dict() for m in mensajes]), 200
 
 
 @mensajes_bp.route('/grupo/<int:id_grupo>', methods=['POST'])
@@ -49,17 +44,30 @@ def obtener_mensajes_directos(otro_usuario_id):
 def enviar_mensaje_grupo(id_grupo):
     data = request.get_json()
     id_usuario = get_jwt_identity()
-    mensaje = data.get('mensaje')
+    mensaje = data.get('mensaje', '').strip()
+    id_publicacion = data.get('id_publicacion')
 
-    # Comprobar que el usuario pertenece al grupo
+    # Verifica que el usuario es miembro
     es_miembro = GrupoUsuario.query.filter_by(id_grupo=id_grupo, id_usuario=id_usuario).first()
     if not es_miembro:
         return jsonify({'error': 'No eres miembro del grupo'}), 403
 
-    nuevo = MensajeGrupo(id_grupo=id_grupo, id_usuario=id_usuario, mensaje=mensaje)
+    nuevo = MensajeGrupo(
+        id_grupo=id_grupo,
+        id_usuario=id_usuario,
+        mensaje=mensaje,
+        id_publicacion=id_publicacion
+    )
+
     db.session.add(nuevo)
     db.session.commit()
+
+    print(f"📢 Emitiendo a grupo grupo_{id_grupo} con mensaje: {nuevo.to_dict()}")
+
+    socketio.emit('nuevo_mensaje_grupo', nuevo.to_dict(), to=f'grupo_{id_grupo}')
+
     return jsonify(nuevo.to_dict()), 201
+
 
 @mensajes_bp.route('/grupo/<int:id_grupo>', methods=['GET'])
 @jwt_required()

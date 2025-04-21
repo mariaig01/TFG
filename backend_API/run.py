@@ -1,16 +1,12 @@
 from flask import Flask
-from backend_API.config import BaseConfig as Config
 from backend_API.config import DevelopmentConfig as Config
-
-from backend_API.extensions import db
+from backend_API.extensions import socketio, db, jwt, mail
 from backend_API.routes.auth import auth_bp
-from backend_API.extensions import jwt
 from backend_API.routes.posts import posts_bp
 from backend_API.routes.mensajes import mensajes_bp
 from backend_API.routes.groups import groups_bp
 from backend_API.routes.users import users_bp
-from backend_API.extensions import mail
-
+from backend_API.routes.general import general_bp
 
 
 def create_app():
@@ -21,6 +17,7 @@ def create_app():
     db.init_app(app)
     jwt.init_app(app)
     mail.init_app(app)
+    socketio.init_app(app)
 
     # Registra blueprints
     app.register_blueprint(auth_bp)
@@ -28,8 +25,16 @@ def create_app():
     app.register_blueprint(mensajes_bp)
     app.register_blueprint(groups_bp)
     app.register_blueprint(users_bp)
+    app.register_blueprint(general_bp)
 
     return app
 
-# 👇 Esto es lo que Flask necesita para saber cuál es tu app
+
 app = create_app()
+
+# Importa handlers para registrar los eventos socket
+from backend_API import socketio_handlers
+
+if __name__ == '__main__':
+    print("🚀 Ejecutando servidor Flask con soporte WebSocket (eventlet)")
+    socketio.run(app, host='0.0.0.0', port=5000)

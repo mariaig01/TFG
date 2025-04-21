@@ -80,6 +80,14 @@ class Post(db.Model):
     # 👉 Relación con los likes
     likes = db.relationship('Like', backref='post', cascade='all, delete-orphan')
 
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "contenido": self.contenido,
+            "imagen_url": f"http://192.168.1.43:5000{self.imagen_url}" if self.imagen_url else None,
+            "usuario": self.usuario.username
+        }
+
 
 class Seguimiento(db.Model):
     __tablename__ = 'seguimientos'
@@ -144,7 +152,10 @@ class Mensaje(db.Model):
             "id_emisor": self.id_emisor,
             "id_receptor": self.id_receptor,
             "mensaje": self.mensaje,
-            "fecha_envio": self.fecha_envio.isoformat() if self.fecha_envio else None
+            "id_publicacion": self.id_publicacion,
+            "fecha_envio": self.fecha_envio.isoformat() if self.fecha_envio else None,
+            "publicacion": self.publicacion.to_dict() if self.publicacion else None
+
         }
 
 
@@ -180,11 +191,13 @@ class MensajeGrupo(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     id_grupo = db.Column(db.Integer, db.ForeignKey('grupos.id', ondelete='CASCADE'), nullable=False)
     id_usuario = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='CASCADE'), nullable=False)
+    id_publicacion = db.Column(db.Integer, db.ForeignKey('publicaciones.id', ondelete='SET NULL'), nullable=True)
     mensaje = db.Column(db.Text, nullable=False)
     fecha_envio = db.Column(db.DateTime, default=datetime.utcnow)
 
     grupo = db.relationship('Grupo', back_populates='mensajes')
     usuario = db.relationship('User', backref='mensajes_grupo')
+    publicacion = db.relationship('Post')
 
     def to_dict(self):
         return {
@@ -193,8 +206,10 @@ class MensajeGrupo(db.Model):
             'id_usuario': self.id_usuario,
             'mensaje': self.mensaje,
             'fecha_envio': self.fecha_envio.isoformat(),
-            'autor': self.usuario.username if self.usuario else "Anónimo"
+            'autor': self.usuario.username if self.usuario else "Anónimo",
+            'publicacion': self.publicacion.to_dict() if self.publicacion else None
         }
+
 
 
 

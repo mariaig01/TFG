@@ -29,6 +29,7 @@ class BaseConfig:
     UPLOAD_FOLDER = os.path.join(os.getcwd(), 'app', 'static', 'uploads')
     PROFILE_IMAGE_FOLDER = os.path.join(os.getcwd(), 'app', 'static', 'profile_images')
     TEMP_UPLOAD_FOLDER = os.path.join(os.getcwd(), 'app', 'static', 'temp_uploads')
+    BASE_URL = os.getenv("BASE_URL", "http://localhost:5000")
 
     # Create upload directories if they don't exist
     for folder in [UPLOAD_FOLDER, PROFILE_IMAGE_FOLDER, TEMP_UPLOAD_FOLDER]:

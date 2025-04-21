@@ -144,3 +144,23 @@ def abandonar_grupo(group_id):
     db.session.commit()
 
     return jsonify({"msg": "Has abandonado el grupo"}), 200
+
+@groups_bp.route('/<int:group_id>/join', methods=['POST'])
+@jwt_required()
+def unirse_a_grupo(group_id):
+    user_id = get_jwt_identity()
+
+    grupo = Grupo.query.get(group_id)
+    if not grupo:
+        return jsonify({'error': 'Grupo no encontrado'}), 404
+
+    ya_miembro = GrupoUsuario.query.filter_by(id_usuario=user_id, id_grupo=group_id).first()
+    if ya_miembro:
+        return jsonify({'message': 'Ya eres miembro del grupo'}), 200
+
+    nuevo = GrupoUsuario(id_usuario=user_id, id_grupo=group_id)
+    db.session.add(nuevo)
+    db.session.commit()
+
+    return jsonify({'message': 'Te has unido al grupo correctamente'}), 200
+
