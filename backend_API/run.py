@@ -1,12 +1,12 @@
 from flask import Flask
-from backend_API.config import DevelopmentConfig as Config
-from backend_API.extensions import socketio, db, jwt, mail
-from backend_API.routes.auth import auth_bp
-from backend_API.routes.posts import posts_bp
-from backend_API.routes.mensajes import mensajes_bp
-from backend_API.routes.groups import groups_bp
-from backend_API.routes.users import users_bp
-from backend_API.routes.general import general_bp
+from config import DevelopmentConfig as Config
+from extensions import socketio, db, jwt, mail
+from routes.auth import auth_bp
+from routes.posts import posts_bp
+from routes.mensajes import mensajes_bp
+from routes.groups import groups_bp
+from routes.users import users_bp
+from routes.general import general_bp
 
 
 def create_app():
@@ -33,7 +33,7 @@ def create_app():
 app = create_app()
 
 # Importa handlers para registrar los eventos socket
-from backend_API import socketio_handlers
+import socketio_handlers
 
 if __name__ == '__main__':
     print("🚀 Ejecutando servidor Flask con soporte WebSocket (eventlet)")

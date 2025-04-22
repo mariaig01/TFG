@@ -1,5 +1,5 @@
 from flask_socketio import join_room, emit
-from backend_API.extensions import socketio
+from extensions import socketio
 
 @socketio.on('connect')
 def on_connect():

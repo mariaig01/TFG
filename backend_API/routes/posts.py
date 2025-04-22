@@ -3,9 +3,9 @@ import uuid
 from flask import Blueprint, request, jsonify, send_from_directory, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.utils import secure_filename
-
-from backend_API.extensions import db, logs_collection
-from backend_API.models import Post, User, Seguimiento, Comentario, Like, Mensaje, MensajeGrupo
+from extensions import socketio
+from extensions import db, logs_collection
+from models import Post, User, Seguimiento, Comentario, Like, Mensaje, MensajeGrupo
 from sqlalchemy import select, union_all
 from datetime import datetime
 
@@ -86,60 +86,76 @@ def crear_post_mobile():
 
     return jsonify({'message': 'Publicación creada con éxito'}), 201
 
+
+
 @posts_bp.route('/api/feed', methods=['GET'])
 @jwt_required()
 def feed_general():
     user_id = int(get_jwt_identity())
 
-    # Subquery de seguidos
-    seguidos_subq = db.session.query(Seguimiento.id_seguido).filter(
+    # Obtener IDs de seguidos
+    seguidos_ids = db.session.query(Seguimiento.id_seguido).filter(
         Seguimiento.id_seguidor == user_id,
-        Seguimiento.tipo == 'seguidor'
+        Seguimiento.tipo == 'seguidor',
+        Seguimiento.estado == 'aceptada'
     ).subquery()
 
-    publicaciones_seguidos = Post.query.join(User).filter(
-        Post.id_usuario.in_(select(seguidos_subq.c.id_seguido)),
-        Post.visibilidad.in_(['publico', 'seguidores'])
-    )
-
-    # Subqueries individuales para amigos aceptados (bidireccional)
-    amigos1 = db.session.query(Seguimiento.id_seguidor).filter(
+    # Obtener IDs de amigos bidireccionales únicos
+    amigos_1 = db.session.query(Seguimiento.id_seguidor).filter(
         Seguimiento.id_seguido == user_id,
         Seguimiento.tipo == 'amigo',
         Seguimiento.estado == 'aceptada'
     )
 
-    amigos2 = db.session.query(Seguimiento.id_seguido).filter(
+    amigos_2 = db.session.query(Seguimiento.id_seguido).filter(
         Seguimiento.id_seguidor == user_id,
         Seguimiento.tipo == 'amigo',
         Seguimiento.estado == 'aceptada'
     )
 
-    # Unimos ambas listas de IDs
-    amigos_ids = [row[0] for row in amigos1.union_all(amigos2).all()]
+    amigos_ids = [row[0] for row in amigos_1.union_all(amigos_2).all()]
+
+    # --- Construir los tres subconjuntos según visibilidad ---
+
+    publicaciones_publicas = Post.query.join(User).filter(
+        ((Post.id_usuario.in_(select(seguidos_ids.c.id_seguido))) |
+         (Post.id_usuario.in_(amigos_ids))),
+        Post.visibilidad == 'publico'
+    )
+
+    publicaciones_seguidores = Post.query.join(User).filter(
+        Post.id_usuario.in_(select(seguidos_ids.c.id_seguido)),
+        Post.visibilidad == 'seguidores'
+    )
 
     publicaciones_amigos = Post.query.join(User).filter(
         Post.id_usuario.in_(amigos_ids),
-        Post.visibilidad.in_(['publico', 'seguidores', 'amigos'])
+        Post.visibilidad == 'amigos'
     )
 
-    # Unimos ambos conjuntos de publicaciones
-    publicaciones = publicaciones_seguidos.union(publicaciones_amigos).order_by(Post.fecha_publicacion.desc()).all()
+    # Unir todo y ordenar
+    publicaciones = publicaciones_publicas.union_all(
+        publicaciones_seguidores
+    ).union_all(
+        publicaciones_amigos
+    ).order_by(Post.fecha_publicacion.desc()).all()
 
+    # Construir respuesta
     posts_data = []
     for p in publicaciones:
         autor_id = p.id_usuario
 
         tipo_relacion = ''
-        seguimiento = Seguimiento.query.filter_by(
-            id_seguidor=user_id,
-            id_seguido=autor_id
-        ).first()
+        seguimientos = Seguimiento.query.filter(
+            ((Seguimiento.id_seguidor == user_id) & (Seguimiento.id_seguido == autor_id)) |
+            ((Seguimiento.id_seguidor == autor_id) & (Seguimiento.id_seguido == user_id))
+        ).filter(Seguimiento.estado == 'aceptada').all()
 
-        if seguimiento:
-            if seguimiento.tipo == 'amigo' and seguimiento.estado == 'aceptada':
+        for s in seguimientos:
+            if s.tipo == 'amigo':
                 tipo_relacion = 'amigo'
-            elif seguimiento.tipo == 'seguidor':
+                break
+            elif s.tipo == 'seguidor' and s.id_seguidor == user_id:
                 tipo_relacion = 'seguido'
 
         posts_data.append({
@@ -155,7 +171,6 @@ def feed_general():
         })
 
     return jsonify({"posts": posts_data}), 200
-
 
 
 
@@ -248,8 +263,8 @@ def obtener_comentarios(post_id):
 def crear_comentario(post_id):
     user_id = int(get_jwt_identity())
     data = request.get_json()
-
     texto = data.get('contenido', '').strip()
+
     if not texto:
         return jsonify({'error': 'El comentario no puede estar vacío'}), 400
 
@@ -258,9 +273,18 @@ def crear_comentario(post_id):
         id_usuario=user_id,
         texto=texto
     )
-
     db.session.add(nuevo_comentario)
     db.session.commit()
+
+    comentario_dict = {
+        'id': nuevo_comentario.id,
+        'post_id': post_id,
+        'autor': nuevo_comentario.usuario.username,
+        'contenido': nuevo_comentario.texto,
+        'fecha': nuevo_comentario.fecha_comentario.isoformat()
+    }
+
+    socketio.emit(f'nuevo_comentario_{post_id}', comentario_dict)
 
     if logs_collection is not None:
         logs_collection.insert_one({
@@ -324,38 +348,7 @@ def toggle_like(post_id):
 
 
 
-@posts_bp.route('/api/<int:post_id>/enviar', methods=['POST'])
-@jwt_required()
-def enviar_publicacion(post_id):
-    data = request.get_json()
-    user_id = int(get_jwt_identity())
-    id_receptor = data.get('id_receptor')
-    mensaje = data.get('mensaje', '').strip()
 
-    if not id_receptor:
-        return jsonify({'error': 'Receptor no especificado'}), 400
-
-    nuevo_mensaje = Mensaje(
-        id_emisor=user_id,
-        id_receptor=id_receptor,
-        mensaje=mensaje,
-        id_publicacion=post_id
-    )
-
-    db.session.add(nuevo_mensaje)
-    db.session.commit()
-
-    if logs_collection is not None:
-        logs_collection.insert_one({
-            "evento": "publicacion_enviada",
-            "emisor_id": user_id,
-            "receptor_id": id_receptor,
-            "post_id": post_id,
-            "mensaje": mensaje,
-            "timestamp": datetime.utcnow()
-        })
-
-    return jsonify({'message': 'Publicación enviada por mensaje'}), 201
 
 @posts_bp.route('/api/<int:post_id>/enviar-grupo/<int:group_id>', methods=['POST'])
 @jwt_required()

@@ -1,7 +1,9 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from backend_API.models import db, Mensaje, User, MensajeGrupo, GrupoUsuario
-from backend_API.extensions import socketio
+from models import db, Mensaje, User, MensajeGrupo, GrupoUsuario
+from extensions import socketio
+from datetime import datetime
+from extensions import logs_collection
 
 mensajes_bp = Blueprint('mensajes', __name__, url_prefix='/mensajes')
 
@@ -12,18 +14,36 @@ def enviar_mensaje_directo():
     id_emisor = get_jwt_identity()
     id_receptor = data.get('id_receptor')
     mensaje = data.get('mensaje')
+    id_publicacion = data.get('id_publicacion')  # opcional
+
+    if not id_receptor:
+        return jsonify({'error': 'Receptor no especificado'}), 400
 
     nuevo_mensaje = Mensaje(
         id_emisor=id_emisor,
         id_receptor=id_receptor,
-        mensaje=mensaje
+        mensaje=mensaje,
+        id_publicacion=id_publicacion
     )
+
     db.session.add(nuevo_mensaje)
     db.session.commit()
+
+    if logs_collection is not None:
+        logs_collection.insert_one({
+            "evento": "mensaje_directo_enviado",
+            "emisor_id": id_emisor,
+            "receptor_id": id_receptor,
+            "mensaje": mensaje,
+            "mensaje_id": nuevo_mensaje.id,
+            "post_id": id_publicacion,
+            "timestamp": datetime.utcnow()
+        })
 
     socketio.emit('nuevo_mensaje', nuevo_mensaje.to_dict(), to=str(id_receptor))
 
     return jsonify(nuevo_mensaje.to_dict()), 201
+
 
 
 @mensajes_bp.route('/directo/<int:otro_usuario_id>', methods=['GET'])
@@ -62,7 +82,15 @@ def enviar_mensaje_grupo(id_grupo):
     db.session.add(nuevo)
     db.session.commit()
 
-    print(f"📢 Emitiendo a grupo grupo_{id_grupo} con mensaje: {nuevo.to_dict()}")
+    if logs_collection is not None:
+        logs_collection.insert_one({
+            "evento": "mensaje_grupo_enviado",
+            "grupo_id": id_grupo,
+            "usuario_id": id_usuario,
+            "mensaje": mensaje,
+            "id_publicacion": id_publicacion,
+            "timestamp": datetime.utcnow()
+        })
 
     socketio.emit('nuevo_mensaje_grupo', nuevo.to_dict(), to=f'grupo_{id_grupo}')
 
@@ -74,3 +102,52 @@ def enviar_mensaje_grupo(id_grupo):
 def obtener_mensajes_grupo(id_grupo):
     mensajes = MensajeGrupo.query.filter_by(id_grupo=id_grupo).order_by(MensajeGrupo.fecha_envio.asc()).all()
     return jsonify([m.to_dict() for m in mensajes])
+
+
+@mensajes_bp.route('/usuarios-conversacion', methods=['GET'])
+@jwt_required()
+def obtener_usuarios_con_actividad_de_mensajes():
+    user_id = int(get_jwt_identity())
+
+    mensajes = Mensaje.query.filter(
+        (Mensaje.id_emisor == user_id) | (Mensaje.id_receptor == user_id)
+    ).all()
+
+    ids_relacionados = set()
+    for m in mensajes:
+        if m.id_emisor != user_id:
+            ids_relacionados.add(m.id_emisor)
+        if m.id_receptor != user_id:
+            ids_relacionados.add(m.id_receptor)
+
+    usuarios = User.query.filter(User.id.in_(ids_relacionados)).all()
+
+    resultado = []
+    for u in usuarios:
+        resultado.append({
+            'id': u.id,
+            'username': u.username,
+            'nombre': u.nombre,
+            'apellido': u.apellido,
+            'foto_perfil': u.foto_perfil,
+            'tipo': tipo_de_relacion(user_id, u.id)
+        })
+
+    return jsonify(resultado), 200
+
+
+def tipo_de_relacion(id1, id2):
+    from models import Seguimiento
+
+    relaciones = Seguimiento.query.filter(
+        ((Seguimiento.id_seguidor == id1) & (Seguimiento.id_seguido == id2)) |
+        ((Seguimiento.id_seguidor == id2) & (Seguimiento.id_seguido == id1))
+    ).filter(Seguimiento.estado == 'aceptada').all()
+
+    for r in relaciones:
+        if r.tipo == 'amigo':
+            return 'amigo'
+        elif r.tipo == 'seguidor' and r.id_seguidor == id1:
+            return 'seguido'
+
+    return 'desconocido'

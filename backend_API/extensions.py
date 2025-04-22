@@ -1,12 +1,10 @@
-
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_mail import Mail
 from flask_jwt_extended import JWTManager
 from flask_socketio import SocketIO
-from flask_wtf import CSRFProtect
-from flask_cors import CORS
 from sqlalchemy import MetaData
+import os
 
 # Create extension instances
 naming_convention = {
@@ -24,32 +22,32 @@ migrate = Migrate()
 mail = Mail()
 jwt = JWTManager()
 socketio = SocketIO(cors_allowed_origins="*", async_mode='gevent')
-csrf = CSRFProtect()
-# In app/extensions.py
+
+# Limiter (con Redis si está disponible y configurado)
 from flask_limiter.util import get_remote_address
 from flask_limiter import Limiter
 
-#Configure limiter with Redis if available
 try:
     from redis import Redis
-    redis_client = Redis(host='localhost', port=6379, db=0)
+    redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
+    redis_client = Redis.from_url(redis_url)
     limiter = Limiter(
         get_remote_address,
         default_limits=["200 per day", "50 per hour"],
-        storage_uri="redis://localhost:6379"
+        storage_uri=redis_url
     )
 except ImportError:
-    # Fallback to memory storage with warning
+    redis_client = None
     limiter = Limiter(
         get_remote_address,
         default_limits=["200 per day", "50 per hour"]
     )
-cors = CORS()
 
+# MongoDB para logs de actividad
 try:
     from pymongo import MongoClient
-
-    mongo_client = MongoClient("mongodb://localhost:27017/")
+    mongo_uri = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
+    mongo_client = MongoClient(mongo_uri)
     mongo_db = mongo_client["looksy_db"]
     logs_collection = mongo_db["logs_actividad"]
 except ImportError:

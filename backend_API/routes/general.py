@@ -1,7 +1,6 @@
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required
-from backend_API.models import User, Grupo, GrupoUsuario, Seguimiento
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from models import User, Grupo, GrupoUsuario, Seguimiento
 
 general_bp = Blueprint('general', __name__, url_prefix='/api')
 
@@ -12,7 +11,7 @@ def buscar():
     if not query:
         return jsonify({'error': 'Término de búsqueda vacío'}), 400
 
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
 
     # Buscar usuarios
     usuarios = User.query.filter(User.username.ilike(f'%{query}%')).all()
@@ -31,7 +30,8 @@ def buscar():
             'id': u.id,
             'username': u.username,
             'foto_perfil': u.foto_perfil,
-            'relacion': seguimiento.tipo if seguimiento else None  # 'seguidor', 'amigo', o None
+            'relacion': seguimiento.tipo if seguimiento else None,    # 'seguidor', 'amigo' o None
+            'estado': seguimiento.estado if seguimiento else None     # 'pendiente', 'aceptada', etc.
         })
 
     # Buscar grupos con info de si pertenece
@@ -51,6 +51,4 @@ def buscar():
         'usuarios': resultados_usuarios,
         'grupos': resultados_grupos
     }), 200
-
-
 

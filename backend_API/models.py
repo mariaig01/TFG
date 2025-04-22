@@ -1,6 +1,6 @@
 from flask_login import UserMixin
 from sqlalchemy.sql import func
-from backend_API.extensions import db
+from extensions import db
 from datetime import datetime
 
 
@@ -96,9 +96,9 @@ class Seguimiento(db.Model):
     id_seguidor = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
     id_seguido = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
     tipo = db.Column(db.String(20))  # 'seguidor' o 'amigo'
-    estado = db.Column(db.String(20))  # 'pendiente' o 'aceptada'
+    estado = db.Column(db.String(20), default='pendiente')
+    fecha_inicio = db.Column(db.DateTime, default=datetime.utcnow)
 
-    # Relaciones opcionales
     seguidor = db.relationship('User', foreign_keys=[id_seguidor], backref='seguidos')
     seguido = db.relationship('User', foreign_keys=[id_seguido], backref='seguidores')
 

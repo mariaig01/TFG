@@ -14,7 +14,7 @@ load_dotenv()
 class BaseConfig:
     """Base configuration class with common settings."""
 
-    # Secret key for session management and CSRF protection
+    # Secret key for session management
     SECRET_KEY = os.getenv("SECRET_KEY")
 
     # Flask-SQLAlchemy settings
@@ -107,9 +107,6 @@ class ProductionConfig(BaseConfig):
         'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net code.jquery.com cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' stackpath.bootstrapcdn.com cdn.jsdelivr.net; img-src 'self' data:; font-src 'self' stackpath.bootstrapcdn.com; connect-src 'self'"
     }
 
-    # Use stronger password hashing in production
-    SECURITY_PASSWORD_HASH = os.getenv("SECURITY_PASSWORD_HASH")
-    SECURITY_PASSWORD_SALT = os.getenv("SECURITY_PASSWORD_SALT")
 
     # Error emails
     ADMINS = [x.strip() for x in os.getenv("ADMINS", "").split(",")]

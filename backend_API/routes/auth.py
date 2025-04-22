@@ -9,9 +9,9 @@ from flask_jwt_extended import (
 )
 from flask_mail import Message
 from datetime import timedelta, datetime
-from backend_API.models import User
-from backend_API.extensions import db, mail, logs_collection
-from backend_API.utils.helpers import is_strong_password, is_valid_email
+from models import User
+from extensions import db, mail, logs_collection
+from utils.helpers import is_strong_password, is_valid_email
 import secrets
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
