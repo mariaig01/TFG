@@ -4,7 +4,6 @@ from extensions import db
 from datetime import datetime
 
 
-
 class User(db.Model, UserMixin):
     __tablename__ = 'usuarios'  # nombre exacto de la tabla en PostgreSQL
 
@@ -184,7 +183,6 @@ class Grupo(db.Model):
         }
 
 
-
 class MensajeGrupo(db.Model):
     __tablename__ = 'mensajes_grupo'
 
@@ -212,7 +210,6 @@ class MensajeGrupo(db.Model):
 
 
 
-
 class GrupoUsuario(db.Model):
     __tablename__ = 'grupo_usuarios'
 
@@ -232,4 +229,50 @@ class GrupoUsuario(db.Model):
             'id_usuario': self.id_usuario,
             'rol': self.rol,
             'fecha_ingreso': self.fecha_ingreso.isoformat()
+        }
+
+class Favorito(db.Model):
+    __tablename__ = 'favoritos'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    id_usuario = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='CASCADE'), nullable=False)
+    id_prenda = db.Column(db.Integer, db.ForeignKey('prendas.id'), nullable=True)
+    id_publicacion = db.Column(db.Integer, db.ForeignKey('publicaciones.id'), nullable=True)
+    fecha_agregado = db.Column(db.DateTime, default=datetime.utcnow)
+
+    usuario = db.relationship('User', backref='favoritos')
+    publicacion = db.relationship('Post', foreign_keys=[id_publicacion], backref='favoritos')
+    prenda = db.relationship('Prenda', foreign_keys=[id_prenda], backref='favoritos')
+
+
+class Prenda(db.Model):
+    __tablename__ = 'prendas'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    id_usuario = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='CASCADE'), nullable=False)
+    nombre = db.Column(db.String(100), nullable=False)
+    descripcion = db.Column(db.Text)
+    precio = db.Column(db.Numeric(10, 2))
+    talla = db.Column(db.String(10))
+    color = db.Column(db.String(30))
+    imagen_url = db.Column(db.String(255))
+    fecha_agregado = db.Column(db.DateTime, default=datetime.utcnow)
+    fecha_modificacion = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    solicitable = db.Column(db.Boolean, default=False)
+
+    usuario = db.relationship('User', backref='prendas')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'id_usuario': self.id_usuario,
+            'nombre': self.nombre,
+            'descripcion': self.descripcion,
+            'precio': float(self.precio) if self.precio else None,
+            'talla': self.talla,
+            'color': self.color,
+            'imagen_url': self.imagen_url,
+            'fecha_agregado': self.fecha_agregado.isoformat() if self.fecha_agregado else None,
+            'fecha_modificacion': self.fecha_modificacion.isoformat() if self.fecha_modificacion else None,
+            'solicitable': self.solicitable
         }

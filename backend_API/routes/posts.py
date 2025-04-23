@@ -5,7 +5,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.utils import secure_filename
 from extensions import socketio
 from extensions import db, logs_collection
-from models import Post, User, Seguimiento, Comentario, Like, Mensaje, MensajeGrupo
+from models import Post, User, Seguimiento, Comentario, Like, Favorito
 from sqlalchemy import select, union_all
 from datetime import datetime
 
@@ -164,77 +164,18 @@ def feed_general():
             'imagen_url': f"{current_app.config['BASE_URL']}{p.imagen_url}" if p.imagen_url else None,
             'fecha': p.fecha_publicacion.isoformat(),
             'usuario': p.usuario.username,
-            'foto_perfil': p.usuario.foto_perfil,
+            'foto_perfil': f"{current_app.config['BASE_URL']}{p.usuario.foto_perfil}" if p.usuario.foto_perfil else None,
             'likes_count': len(p.likes),
             'ha_dado_like': any(l.id_usuario == user_id for l in p.likes),
-            'tipo_relacion': tipo_relacion
+            'tipo_relacion': tipo_relacion,
+            'guardado': Favorito.query.filter_by(id_usuario=user_id, id_publicacion=p.id).first() is not None
         })
 
     return jsonify({"posts": posts_data}), 200
 
 
 
-@posts_bp.route('/api/mis-publicaciones', methods=['GET'])
-@jwt_required()
-def publicaciones_propias():
-    user_id = int(get_jwt_identity())
-    publicaciones = Post.query.filter_by(id_usuario=user_id).order_by(Post.fecha_publicacion.desc()).all()
 
-    return jsonify([{
-        'id': p.id,
-        'contenido': p.contenido,
-        'imagen_url': f"{current_app.config['BASE_URL']}{p.imagen_url}" if p.imagen_url else None,
-        'fecha': p.fecha_publicacion.isoformat(),
-        'usuario': p.usuario.username
-    } for p in publicaciones]), 200
-
-
-@posts_bp.route('/api/seguidos-publicaciones', methods=['GET'])
-@jwt_required()
-def publicaciones_seguidos():
-    user_id = int(get_jwt_identity())
-
-    subquery = db.session.query(Seguimiento.id_seguido).filter(
-        Seguimiento.id_seguidor == user_id,
-        Seguimiento.tipo == 'seguidor'
-    ).subquery()
-
-    publicaciones = Post.query.join(User).filter(
-        Post.id_usuario.in_(subquery),
-        Post.visibilidad.in_(['publico', 'seguidores'])
-    ).order_by(Post.fecha_publicacion.desc()).all()
-
-    return jsonify([{
-        'id': p.id,
-        'contenido': p.contenido,
-        'imagen_url': f"{current_app.config['BASE_URL']}{p.imagen_url}" if p.imagen_url else None,
-        'fecha': p.fecha_publicacion.isoformat(),
-        'usuario': p.usuario.username
-    } for p in publicaciones]), 200
-
-
-@posts_bp.route('/api/amigos-publicaciones', methods=['GET'])
-@jwt_required()
-def publicaciones_amigos():
-    user_id = int(get_jwt_identity())
-
-    subquery = db.session.query(Seguimiento.id_seguido).filter(
-        Seguimiento.id_seguidor == user_id,
-        Seguimiento.tipo == 'amigo'
-    ).subquery()
-
-    publicaciones = Post.query.join(User).filter(
-        Post.id_usuario.in_(subquery),
-        Post.visibilidad.in_(['publico', 'seguidores', 'amigos'])
-    ).order_by(Post.fecha_publicacion.desc()).all()
-
-    return jsonify([{
-        'id': p.id,
-        'contenido': p.contenido,
-        'imagen_url': f"{current_app.config['BASE_URL']}{p.imagen_url}" if p.imagen_url else None,
-        'fecha': p.fecha_publicacion.isoformat(),
-        'usuario': p.usuario.username
-    } for p in publicaciones]), 200
 
 
 
@@ -348,36 +289,37 @@ def toggle_like(post_id):
 
 
 
-
-
-@posts_bp.route('/api/<int:post_id>/enviar-grupo/<int:group_id>', methods=['POST'])
+@posts_bp.route('/api/<int:post_id>/guardar', methods=['POST'])
 @jwt_required()
-def enviar_publicacion_a_grupo(post_id, group_id):
+def guardar_publicacion(post_id):
     user_id = int(get_jwt_identity())
-    data = request.get_json()
-    mensaje = data.get('mensaje', '').strip()
 
-    # Comprobar que el grupo existe
-    grupo = Grupo.query.get(group_id)
-    if not grupo:
-        return jsonify({'error': 'Grupo no encontrado'}), 404
+    # Verificar si ya está guardado
+    from models import Favorito
+    existente = Favorito.query.filter_by(id_usuario=user_id, id_publicacion=post_id).first()
+    if existente:
+        return jsonify({'message': 'Ya está guardado'}), 200
 
-    # Comprobar que el usuario pertenece al grupo
-    miembro = GrupoUsuario.query.filter_by(id_grupo=group_id, id_usuario=user_id).first()
-    if not miembro:
-        return jsonify({'error': 'No perteneces a este grupo'}), 403
-
-    # Adjuntar el ID de la publicación como parte del mensaje
-    mensaje_con_post = f"📎 Publicación {post_id}\n{mensaje}" if mensaje else f"📎 Publicación {post_id}"
-
-    nuevo_mensaje = MensajeGrupo(
-        mensaje=mensaje_con_post,
-        fecha_envio=datetime.utcnow(),
-        id_usuario=user_id,
-        id_grupo=group_id
-    )
-
-    db.session.add(nuevo_mensaje)
+    nuevo = Favorito(id_usuario=user_id, id_publicacion=post_id)
+    db.session.add(nuevo)
     db.session.commit()
 
-    return jsonify(nuevo_mensaje.to_dict()), 201
+    return jsonify({'message': 'Guardado correctamente'}), 201
+
+
+@posts_bp.route('/api/<int:post_id>/guardar-toggle', methods=['POST'])
+@jwt_required()
+def toggle_guardado_publicacion(post_id):
+    user_id = int(get_jwt_identity())
+
+    favorito = Favorito.query.filter_by(id_usuario=user_id, id_publicacion=post_id).first()
+
+    if favorito:
+        db.session.delete(favorito)
+        db.session.commit()
+        return jsonify({'message': 'Desguardado', 'guardado': False}), 200
+    else:
+        nuevo = Favorito(id_usuario=user_id, id_publicacion=post_id)
+        db.session.add(nuevo)
+        db.session.commit()
+        return jsonify({'message': 'Guardado', 'guardado': True}), 201

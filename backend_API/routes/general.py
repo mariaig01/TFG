@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from models import User, Grupo, GrupoUsuario, Seguimiento
 
@@ -29,7 +29,7 @@ def buscar():
         resultados_usuarios.append({
             'id': u.id,
             'username': u.username,
-            'foto_perfil': u.foto_perfil,
+            'foto_perfil': f"{current_app.config['BASE_URL']}{u.foto_perfil}" if u.foto_perfil else None,
             'relacion': seguimiento.tipo if seguimiento else None,    # 'seguidor', 'amigo' o None
             'estado': seguimiento.estado if seguimiento else None     # 'pendiente', 'aceptada', etc.
         })

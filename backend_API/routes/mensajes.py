@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from models import db, Mensaje, User, MensajeGrupo, GrupoUsuario
 from extensions import socketio
@@ -129,7 +129,7 @@ def obtener_usuarios_con_actividad_de_mensajes():
             'username': u.username,
             'nombre': u.nombre,
             'apellido': u.apellido,
-            'foto_perfil': u.foto_perfil,
+            'foto_perfil': f"{current_app.config['BASE_URL']}{u.foto_perfil}" if u.foto_perfil else None,
             'tipo': tipo_de_relacion(user_id, u.id)
         })
 

@@ -1,8 +1,10 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from models import db, User, Seguimiento
+from models import db, User, Seguimiento, Post, Favorito
 from datetime import datetime
 from extensions import logs_collection
+import os
+from werkzeug.utils import secure_filename
 
 users_bp = Blueprint('users', __name__, url_prefix='/usuarios')
 
@@ -25,7 +27,7 @@ def obtener_seguidos_y_amigos():
         'username': u.username,
         'nombre': u.nombre,
         'apellido': u.apellido,
-        'foto_perfil': u.foto_perfil,
+        'foto_perfil': f"{current_app.config['BASE_URL']}{u.foto_perfil}" if u.foto_perfil else None,
         'tipo': s.tipo
     } for u, s in seguidos]
 
@@ -49,7 +51,7 @@ def obtener_seguidos_y_amigos():
                 'username': user.username,
                 'nombre': user.nombre,
                 'apellido': user.apellido,
-                'foto_perfil': user.foto_perfil,
+                'foto_perfil': f"{current_app.config['BASE_URL']}{user.foto_perfil}" if user.foto_perfil else None,
                 'tipo': 'amigo'
             })
 
@@ -284,3 +286,214 @@ def solicitudes_recibidas():
         })
 
     return jsonify(resultado), 200
+
+
+@users_bp.route('/<int:user_id>', methods=['GET'])
+@jwt_required()
+def obtener_usuario_por_id(user_id):
+    usuario = User.query.get(user_id)
+    if not usuario:
+        return jsonify({'error': 'Usuario no encontrado'}), 404
+
+    return jsonify(usuario.to_dict()), 200
+
+@users_bp.route('/<int:user_id>/seguidores', methods=['GET'])
+@jwt_required()
+def obtener_seguidores(user_id):
+    relaciones = Seguimiento.query.filter_by(
+        id_seguido=user_id,
+        estado='aceptada'
+    ).filter(Seguimiento.tipo != 'amigo').all()
+
+    seguidores = [r.id_seguidor for r in relaciones]
+    usuarios = User.query.filter(User.id.in_(seguidores)).all()
+    return jsonify([u.to_dict() for u in usuarios]), 200
+
+
+
+@users_bp.route('/<int:user_id>/seguidos', methods=['GET'])
+@jwt_required()
+def obtener_seguidos(user_id):
+    relaciones = Seguimiento.query.filter_by(
+        id_seguidor=user_id,
+        estado='aceptada'
+    ).filter(Seguimiento.tipo != 'amigo').all()
+
+    seguidos = [r.id_seguido for r in relaciones]
+    usuarios = User.query.filter(User.id.in_(seguidos)).all()
+    return jsonify([u.to_dict() for u in usuarios]), 200
+
+
+
+@users_bp.route('/<int:user_id>/amigos', methods=['GET'])
+@jwt_required()
+def obtener_amigos(user_id):
+    relaciones_yo = Seguimiento.query.filter_by(
+        id_seguidor=user_id,
+        tipo='amigo',
+        estado='aceptada'
+    ).all()
+
+    posibles_amigos_ids = [r.id_seguido for r in relaciones_yo]
+
+    # Verifica reciprocidad
+    relaciones_ellos = Seguimiento.query.filter(
+        Seguimiento.id_seguidor.in_(posibles_amigos_ids),
+        Seguimiento.id_seguido == user_id,
+        Seguimiento.tipo == 'amigo',
+        Seguimiento.estado == 'aceptada'
+    ).all()
+
+    amigos_ids = [r.id_seguidor for r in relaciones_ellos]
+    usuarios = User.query.filter(User.id.in_(amigos_ids)).all()
+    return jsonify([u.to_dict() for u in usuarios]), 200
+
+
+@users_bp.route('/subir-imagen-perfil', methods=['POST'])
+@jwt_required()
+def subir_imagen_perfil():
+    from flask import current_app
+    import uuid
+
+    usuario_id = int(get_jwt_identity())
+    usuario = User.query.get(usuario_id)
+
+    if not usuario:
+        return jsonify({'error': 'Usuario no encontrado'}), 404
+
+    imagen_file = request.files.get('imagen')
+    if not imagen_file:
+        return jsonify({'error': 'No se recibió ninguna imagen'}), 400
+
+    try:
+        # Validar extensión
+        ext = imagen_file.filename.rsplit('.', 1)[-1].lower()
+        if ext not in ['jpg', 'jpeg', 'png', 'gif']:
+            return jsonify({'error': 'Extensión de imagen no válida'}), 400
+
+        # Validar tamaño (máximo 5MB)
+        imagen_file.seek(0, os.SEEK_END)
+        file_size = imagen_file.tell()
+        imagen_file.seek(0)
+        if file_size > 5 * 1024 * 1024:
+            return jsonify({'error': 'La imagen excede el tamaño máximo (5 MB)'}), 400
+
+        # Crear nombre único y ruta
+        filename = secure_filename(imagen_file.filename)
+        unique_name = f"{uuid.uuid4().hex}.{ext}"
+
+        upload_path = os.path.join(current_app.root_path, 'static', 'profile_images')
+        os.makedirs(upload_path, exist_ok=True)
+
+        image_path = os.path.join(upload_path, unique_name)
+        imagen_file.save(image_path)
+
+        # Actualizar usuario
+        usuario.foto_perfil = f"/usuarios/profile-images/{unique_name}"
+        db.session.commit()
+
+        return jsonify({'foto_perfil': usuario.foto_perfil}), 200
+
+    except Exception as e:
+        return jsonify({'error': f'Error al guardar imagen: {str(e)}'}), 500
+
+
+@users_bp.route('/profile-images/<filename>')
+def serve_profile_image(filename):
+    from flask import current_app, send_from_directory
+    upload_path = os.path.join(current_app.root_path, 'static', 'profile_images')
+    return send_from_directory(upload_path, filename)
+
+
+@users_bp.route('/mis-publicaciones', methods=['GET'])
+@jwt_required()
+def publicaciones_propias():
+    user_id = int(get_jwt_identity())
+    usuario = User.query.get(user_id)
+
+    publicaciones = Post.query.filter_by(id_usuario=user_id).order_by(Post.fecha_publicacion.desc()).all()
+
+    return jsonify([{
+        'id': p.id,
+        'contenido': p.contenido,
+        'imagen_url': f"{current_app.config['BASE_URL']}{p.imagen_url}" if p.imagen_url else None,
+        'fecha': p.fecha_publicacion.isoformat(),
+        'usuario': p.usuario.username,
+        'foto_perfil': f"{current_app.config['BASE_URL']}{usuario.foto_perfil}" if usuario.foto_perfil else None,
+        'likes_count': len(p.likes),
+        'ha_dado_like': any(l.id_usuario == user_id for l in p.likes),
+        'tipo_relacion': 'propia'
+    } for p in publicaciones]), 200
+
+
+@users_bp.route('/seguidos-publicaciones', methods=['GET'])
+@jwt_required()
+def publicaciones_seguidos():
+    user_id = int(get_jwt_identity())
+
+    subquery = db.session.query(Seguimiento.id_seguido).filter(
+        Seguimiento.id_seguidor == user_id,
+        Seguimiento.tipo == 'seguidor'
+    ).subquery()
+
+    publicaciones = Post.query.join(User).filter(
+        Post.id_usuario.in_(subquery),
+        Post.visibilidad.in_(['publico', 'seguidores'])
+    ).order_by(Post.fecha_publicacion.desc()).all()
+
+    return jsonify([{
+        'id': p.id,
+        'contenido': p.contenido,
+        'imagen_url': f"{current_app.config['BASE_URL']}{p.imagen_url}" if p.imagen_url else None,
+        'fecha': p.fecha_publicacion.isoformat(),
+        'usuario': p.usuario.username
+    } for p in publicaciones]), 200
+
+
+@users_bp.route('/amigos-publicaciones', methods=['GET'])
+@jwt_required()
+def publicaciones_amigos():
+    user_id = int(get_jwt_identity())
+
+    subquery = db.session.query(Seguimiento.id_seguido).filter(
+        Seguimiento.id_seguidor == user_id,
+        Seguimiento.tipo == 'amigo'
+    ).subquery()
+
+    publicaciones = Post.query.join(User).filter(
+        Post.id_usuario.in_(subquery),
+        Post.visibilidad.in_(['publico', 'seguidores', 'amigos'])
+    ).order_by(Post.fecha_publicacion.desc()).all()
+
+    return jsonify([{
+        'id': p.id,
+        'contenido': p.contenido,
+        'imagen_url': f"{current_app.config['BASE_URL']}{p.imagen_url}" if p.imagen_url else None,
+        'fecha': p.fecha_publicacion.isoformat(),
+        'usuario': p.usuario.username
+    } for p in publicaciones]), 200
+
+
+@users_bp.route('/publicaciones-guardadas', methods=['GET'])
+@jwt_required()
+def publicaciones_guardadas():
+    user_id = int(get_jwt_identity())
+
+    favoritos = Favorito.query.filter_by(id_usuario=user_id).filter(Favorito.id_publicacion != None).all()
+    publicaciones = [f.id_publicacion for f in favoritos]
+
+    from models import Post
+    posts = Post.query.filter(Post.id.in_(publicaciones)).order_by(Post.fecha_publicacion.desc()).all()
+
+    return jsonify([{
+        'id': p.id,
+        'contenido': p.contenido,
+        'imagen_url': f"{current_app.config['BASE_URL']}{p.imagen_url}" if p.imagen_url else None,
+        'fecha': p.fecha_publicacion.isoformat(),
+        'usuario': p.usuario.username,
+        'foto_perfil': f"{current_app.config['BASE_URL']}{p.usuario.foto_perfil}" if p.usuario.foto_perfil else None,
+        'likes_count': len(p.likes),
+        'ha_dado_like': any(l.id_usuario == user_id for l in p.likes),
+        'tipo_relacion': 'guardado',
+        'guardado': Favorito.query.filter_by(id_usuario=user_id, id_publicacion=p.id).first() is not None
+    } for p in posts]), 200

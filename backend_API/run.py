@@ -7,6 +7,7 @@ from routes.mensajes import mensajes_bp
 from routes.groups import groups_bp
 from routes.users import users_bp
 from routes.general import general_bp
+from routes.prendas import prendas_bp
 
 
 def create_app():
@@ -26,6 +27,7 @@ def create_app():
     app.register_blueprint(groups_bp)
     app.register_blueprint(users_bp)
     app.register_blueprint(general_bp)
+    app.register_blueprint(prendas_bp)
 
     return app
 
