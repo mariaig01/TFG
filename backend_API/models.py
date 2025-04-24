@@ -276,3 +276,14 @@ class Prenda(db.Model):
             'fecha_modificacion': self.fecha_modificacion.isoformat() if self.fecha_modificacion else None,
             'solicitable': self.solicitable
         }
+
+
+class SolicitudPrenda(db.Model):
+    __tablename__ = 'solicitudes_prenda'
+
+    id = db.Column(db.Integer, primary_key=True)
+    id_prenda = db.Column(db.Integer, db.ForeignKey('prendas.id', ondelete='CASCADE'))
+    id_remitente = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='CASCADE'))
+    id_destinatario = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='CASCADE'))
+    estado = db.Column(db.String(20), default='pendiente')
+    fecha_solicitud = db.Column(db.DateTime, default=datetime.utcnow)

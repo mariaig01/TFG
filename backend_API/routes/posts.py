@@ -160,6 +160,7 @@ def feed_general():
 
         posts_data.append({
             'id': p.id,
+            'id_usuario': autor_id,
             'contenido': p.contenido,
             'imagen_url': f"{current_app.config['BASE_URL']}{p.imagen_url}" if p.imagen_url else None,
             'fecha': p.fecha_publicacion.isoformat(),

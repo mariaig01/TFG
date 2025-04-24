@@ -152,3 +152,14 @@ CREATE TABLE prendas_categorias (
     estacion estacion_enum NOT NULL,
     PRIMARY KEY (prenda_id, categoria_id)
 );
+
+--Tabla solicitudes_categoria
+CREATE TABLE solicitudes_prenda (
+    id SERIAL PRIMARY KEY,
+    id_prenda INT REFERENCES prendas(id) ON DELETE CASCADE,
+    id_remitente INT REFERENCES usuarios(id) ON DELETE CASCADE,
+    id_destinatario INT REFERENCES usuarios(id) ON DELETE CASCADE,
+    estado VARCHAR(20) DEFAULT 'pendiente' CHECK (estado IN ('pendiente', 'aceptada', 'rechazada')),
+    fecha_solicitud TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+

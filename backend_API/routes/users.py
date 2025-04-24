@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from models import db, User, Seguimiento, Post, Favorito
+from models import db, User, Seguimiento, Post, Favorito, SolicitudPrenda
 from datetime import datetime
 from extensions import logs_collection
 import os
@@ -266,14 +266,15 @@ def eliminar_relacion():
 @jwt_required()
 def solicitudes_recibidas():
     id_actual = int(get_jwt_identity())
+    resultado = []
 
-    solicitudes = Seguimiento.query.filter_by(
+    # 🟣 1. Solicitudes de seguimiento / amistad
+    seguimientos = Seguimiento.query.filter_by(
         id_seguido=id_actual,
         estado='pendiente'
     ).all()
 
-    resultado = []
-    for s in solicitudes:
+    for s in seguimientos:
         emisor = User.query.get(s.id_seguidor)
         if not emisor:
             continue
@@ -281,11 +282,30 @@ def solicitudes_recibidas():
             'id': emisor.id,
             'username': emisor.username,
             'foto_perfil': emisor.foto_perfil,
-            'tipo': s.tipo,       # 'amigo' o 'seguidor'
+            'tipo': s.tipo,  # 'amigo' o 'seguidor'
             'fecha': s.fecha_inicio.isoformat()
         })
 
+    # 🟢 2. Solicitudes de prendas
+    solicitudes_prenda = SolicitudPrenda.query.filter_by(
+        id_destinatario=id_actual,
+        estado='pendiente'
+    ).all()
+
+    for sp in solicitudes_prenda:
+        remitente = User.query.get(sp.id_remitente)
+        if not remitente:
+            continue
+        resultado.append({
+            'id': sp.id,  # ID de la solicitud (no del usuario)
+            'username': remitente.username,
+            'foto_perfil': remitente.foto_perfil,
+            'tipo': 'prenda',
+            'fecha': sp.fecha_solicitud.isoformat()
+        })
+
     return jsonify(resultado), 200
+
 
 
 @users_bp.route('/<int:user_id>', methods=['GET'])
@@ -497,3 +517,41 @@ def publicaciones_guardadas():
         'tipo_relacion': 'guardado',
         'guardado': Favorito.query.filter_by(id_usuario=user_id, id_publicacion=p.id).first() is not None
     } for p in posts]), 200
+
+
+@users_bp.route('/publicaciones/usuario/<int:user_id>', methods=['GET'])
+@jwt_required()
+def publicaciones_de_usuario(user_id):
+    usuario = User.query.get(user_id)
+    if not usuario:
+        return jsonify({'error': 'Usuario no encontrado'}), 404
+
+    publicaciones = Post.query.filter_by(id_usuario=user_id).order_by(Post.fecha_publicacion.desc()).all()
+
+    return jsonify([{
+        'id': p.id,
+        'contenido': p.contenido,
+        'imagen_url': f"{current_app.config['BASE_URL']}{p.imagen_url}" if p.imagen_url else None,
+        'fecha': p.fecha_publicacion.isoformat(),
+        'usuario': usuario.username,
+        'foto_perfil': f"{current_app.config['BASE_URL']}{usuario.foto_perfil}" if usuario.foto_perfil else None,
+        'likes_count': len(p.likes),
+        'ha_dado_like': False,  # Opcional: puedes calcularlo si es el usuario autenticado
+    } for p in publicaciones]), 200
+
+
+@users_bp.route('/<int:user_id>/relacion', methods=['GET'])
+@jwt_required()
+def obtener_relacion_usuario(user_id):
+    actual_id = int(get_jwt_identity())
+
+    seguimiento = Seguimiento.query.filter_by(
+        id_seguidor=actual_id,
+        id_seguido=user_id
+    ).first()
+
+    return jsonify({
+        'relacion': seguimiento.tipo if seguimiento else None,   # 'amigo' o 'seguidor'
+        'estado': seguimiento.estado if seguimiento else None,   # 'pendiente' o None
+    }), 200
+
