@@ -287,3 +287,5 @@ class SolicitudPrenda(db.Model):
     id_destinatario = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='CASCADE'))
     estado = db.Column(db.String(20), default='pendiente')
     fecha_solicitud = db.Column(db.DateTime, default=datetime.utcnow)
+    fecha_inicio = db.Column(db.DateTime)
+    fecha_fin = db.Column(db.DateTime)

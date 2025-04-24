@@ -160,6 +160,9 @@ CREATE TABLE solicitudes_prenda (
     id_remitente INT REFERENCES usuarios(id) ON DELETE CASCADE,
     id_destinatario INT REFERENCES usuarios(id) ON DELETE CASCADE,
     estado VARCHAR(20) DEFAULT 'pendiente' CHECK (estado IN ('pendiente', 'aceptada', 'rechazada')),
-    fecha_solicitud TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    fecha_solicitud TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    fecha_inicio TIMESTAMP,
+    fecha_fin TIMESTAMP
 );
+
 

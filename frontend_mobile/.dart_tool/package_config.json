@@ -260,6 +260,12 @@
       "languageVersion": "2.19"
     },
     {
+      "name": "intl",
+      "rootUri": "file:///home/maig/.pub-cache/hosted/pub.dev/intl-0.18.1",
+      "packageUri": "lib/",
+      "languageVersion": "2.12"
+    },
+    {
       "name": "js",
       "rootUri": "file:///home/maig/.pub-cache/hosted/pub.dev/js-0.6.7",
       "packageUri": "lib/",
@@ -644,7 +650,7 @@
       "languageVersion": "3.7"
     }
   ],
-  "generated": "2025-04-24T14:51:22.209166Z",
+  "generated": "2025-04-24T22:57:23.665527Z",
   "generator": "pub",
   "generatorVersion": "3.7.2",
   "flutterRoot": "file:///home/maig/snap/flutter/common/flutter",

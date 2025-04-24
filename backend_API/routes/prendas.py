@@ -102,7 +102,8 @@ def obtener_mis_prendas():
             'color': p.color,
             'imagen_url': f"{current_app.config['BASE_URL']}{p.imagen_url}" if p.imagen_url else None,
             'solicitable': p.solicitable,
-            'fecha_agregado': p.fecha_agregado.isoformat()
+            'fecha_agregado': p.fecha_agregado.isoformat(),
+            'solicitable': p.solicitable,
         } for p in prendas
     ]), 200
 
@@ -122,6 +123,7 @@ def editar_prenda(prenda_id):
     prenda.talla = data.get('talla', prenda.talla)
     prenda.color = data.get('color', prenda.color)
     prenda.fecha_modificacion = datetime.utcnow()
+    prenda.solicitable = data.get('solicitable', prenda.solicitable)
 
     db.session.commit()
 
@@ -174,6 +176,8 @@ def obtener_prendas_usuario(user_id):
     } for p in prendas]), 200
 
 
+from datetime import datetime
+
 @prendas_bp.route('/<int:prenda_id>/solicitar', methods=['POST'])
 @jwt_required()
 def solicitar_prenda(prenda_id):
@@ -186,7 +190,6 @@ def solicitar_prenda(prenda_id):
     if prenda.id_usuario == usuario_id:
         return jsonify({'error': 'No puedes solicitar tu propia prenda'}), 400
 
-    # Evitar duplicados
     existente = SolicitudPrenda.query.filter_by(
         id_prenda=prenda_id,
         id_remitente=usuario_id,
@@ -197,17 +200,40 @@ def solicitar_prenda(prenda_id):
     if existente:
         return jsonify({'error': 'Ya has solicitado esta prenda'}), 409
 
+    try:
+        fecha_inicio = datetime.strptime(request.form.get('fecha_inicio'), '%Y-%m-%dT%H:%M')
+        fecha_fin = datetime.strptime(request.form.get('fecha_fin'), '%Y-%m-%dT%H:%M')
+    except Exception:
+        return jsonify({'error': 'Fechas inválidas. Formato esperado: yyyy-MM-ddTHH:mm'}), 400
+
     solicitud = SolicitudPrenda(
         id_prenda=prenda_id,
         id_remitente=usuario_id,
         id_destinatario=prenda.id_usuario,
-        estado='pendiente'
+        estado='pendiente',
+        fecha_inicio=fecha_inicio,
+        fecha_fin=fecha_fin,
+        fecha_solicitud=datetime.utcnow()
     )
 
     db.session.add(solicitud)
     db.session.commit()
 
+    if logs_collection is not None:
+        logs_collection.insert_one({
+            "evento": "solicitud_prenda",
+            "id_solicitud": solicitud.id,
+            "id_prenda": prenda_id,
+            "id_remitente": usuario_id,
+            "id_destinatario": prenda.id_usuario,
+            "fecha_inicio": fecha_inicio.isoformat(),
+            "fecha_fin": fecha_fin.isoformat(),
+            "timestamp": datetime.utcnow(),
+            "estado": "pendiente"
+        })
+
     return jsonify({'message': 'Solicitud de prenda registrada'}), 201
+
 
 
 
