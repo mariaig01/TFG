@@ -1,9 +1,10 @@
 -- Crear tipo ENUM para estaciones
 DO $$ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'estacion_enum') THEN
-        CREATE TYPE estacion_enum AS ENUM ('Primavera', 'Verano', 'Otoño', 'Invierno');
+        CREATE TYPE estacion_enum AS ENUM ('Primavera', 'Verano', 'Otoño', 'Invierno', 'Cualquiera');
     END IF;
 END $$;
+
 
 -- Tabla usuarios
 CREATE TABLE usuarios (

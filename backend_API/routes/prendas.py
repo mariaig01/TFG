@@ -4,7 +4,7 @@ from flask import Blueprint, request, jsonify, current_app, send_from_directory
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.utils import secure_filename
 from extensions import db, logs_collection
-from models import Prenda, User, SolicitudPrenda
+from models import Prenda, User, SolicitudPrenda, PrendaCategoria, Categoria
 from datetime import datetime
 from utils.image_processing import remove_background_and_white_bg
 
@@ -23,6 +23,9 @@ def crear_prenda():
     solicitable = request.form.get('solicitable') == 'true'
     imagen_file = request.files.get('imagen')
     eliminar_fondo = request.form.get('eliminar_fondo', 'true').lower() == 'true'
+
+    categorias_raw = request.form.get('categorias', '')
+    estacion = request.form.get('estacion', 'Cualquiera')
 
     if not nombre or not precio or not imagen_file:
         return jsonify({'error': 'Nombre, precio e imagen son obligatorios'}), 400
@@ -47,7 +50,6 @@ def crear_prenda():
 
         imagen_url = f"/prendas/uploads/{nombre_final}"
 
-
     except Exception as e:
         return jsonify({'error': f'Error al procesar imagen: {str(e)}'}), 500
 
@@ -67,6 +69,27 @@ def crear_prenda():
     db.session.add(nueva_prenda)
     db.session.commit()
 
+    # insertamos en prendas_categorias
+    categorias_lista = [c.strip() for c in categorias_raw.split(',') if c.strip()]
+
+    for nombre_categoria in categorias_lista:
+        # Buscar o crear la categoría si no existe
+        categoria = Categoria.query.filter_by(nombre=nombre_categoria).first()
+        if not categoria:
+            categoria = Categoria(nombre=nombre_categoria)
+            db.session.add(categoria)
+            db.session.commit()
+
+        # Crear la relación
+        prenda_categoria = PrendaCategoria(
+            prenda_id=nueva_prenda.id,
+            categoria_id=categoria.id,
+            estacion=estacion
+        )
+        db.session.add(prenda_categoria)
+
+    db.session.commit()
+
     if logs_collection is not None:
         logs_collection.insert_one({
             "evento": "prenda_creada",
@@ -78,6 +101,7 @@ def crear_prenda():
         })
 
     return jsonify({'message': 'Prenda creada con éxito'}), 201
+
 
 @prendas_bp.route('/uploads/<filename>')
 def serve_uploaded_prenda(filename):
@@ -103,9 +127,11 @@ def obtener_mis_prendas():
             'imagen_url': f"{current_app.config['BASE_URL']}{p.imagen_url}" if p.imagen_url else None,
             'solicitable': p.solicitable,
             'fecha_agregado': p.fecha_agregado.isoformat(),
-            'solicitable': p.solicitable,
+            'estacion': p.prendas_categorias[0].estacion if p.prendas_categorias else None,
+            'categorias': [rel.categoria.nombre for rel in p.prendas_categorias],
         } for p in prendas
     ]), 200
+
 
 @prendas_bp.route('/api/<int:prenda_id>/editar', methods=['PUT'])
 @jwt_required()
@@ -117,13 +143,37 @@ def editar_prenda(prenda_id):
         return jsonify({'error': 'Prenda no encontrada o no autorizada'}), 404
 
     data = request.get_json()
+
+    # Actualizar datos básicos
     prenda.nombre = data.get('nombre', prenda.nombre)
     prenda.descripcion = data.get('descripcion', prenda.descripcion)
     prenda.precio = data.get('precio', prenda.precio)
     prenda.talla = data.get('talla', prenda.talla)
     prenda.color = data.get('color', prenda.color)
-    prenda.fecha_modificacion = datetime.utcnow()
     prenda.solicitable = data.get('solicitable', prenda.solicitable)
+    prenda.fecha_modificacion = datetime.utcnow()
+
+    categorias = data.get('categorias', [])
+    estacion = data.get('estacion', 'Cualquiera')
+
+    if categorias:
+        # Borrar las relaciones anteriores
+        from models import PrendaCategoria, Categoria
+        PrendaCategoria.query.filter_by(prenda_id=prenda.id).delete()
+
+        for nombre_categoria in categorias:
+            categoria = Categoria.query.filter_by(nombre=nombre_categoria.strip()).first()
+            if not categoria:
+                categoria = Categoria(nombre=nombre_categoria.strip())
+                db.session.add(categoria)
+                db.session.commit()
+
+            nueva_relacion = PrendaCategoria(
+                prenda_id=prenda.id,
+                categoria_id=categoria.id,
+                estacion=estacion
+            )
+            db.session.add(nueva_relacion)
 
     db.session.commit()
 
@@ -139,7 +189,11 @@ def eliminar_prenda(prenda_id):
     if not prenda:
         return jsonify({'error': 'Prenda no encontrada o no autorizada'}), 404
 
-    # Ruta del archivo en disco
+    #Eliminar relaciones en prendas_categorias
+    from models import PrendaCategoria
+    PrendaCategoria.query.filter_by(prenda_id=prenda_id).delete()
+
+    #Eliminar imagen física
     if prenda.imagen_url:
         try:
             nombre_archivo = prenda.imagen_url.split("/")[-1]
@@ -147,12 +201,14 @@ def eliminar_prenda(prenda_id):
             if os.path.exists(ruta_imagen):
                 os.remove(ruta_imagen)
         except Exception as e:
-            print(f"⚠️ Error al eliminar imagen física: {e}")
+            print(f"Error al eliminar imagen física: {e}")
 
     db.session.delete(prenda)
     db.session.commit()
 
     return jsonify({'message': 'Prenda eliminada correctamente'}), 200
+
+
 
 @prendas_bp.route('/usuario/<int:user_id>', methods=['GET'])
 @jwt_required()
@@ -163,20 +219,25 @@ def obtener_prendas_usuario(user_id):
 
     prendas = Prenda.query.filter_by(id_usuario=user_id).order_by(Prenda.fecha_agregado.desc()).all()
 
-    return jsonify([{
-        'id': p.id,
-        'nombre': p.nombre,
-        'descripcion': p.descripcion,
-        'precio': float(p.precio),
-        'talla': p.talla,
-        'color': p.color,
-        'imagen_url': f"{current_app.config['BASE_URL']}{p.imagen_url}" if p.imagen_url else None,
-        'solicitable': p.solicitable,
-        'fecha_agregado': p.fecha_agregado.isoformat()
-    } for p in prendas]), 200
+    return jsonify([
+        {
+            'id': p.id,
+            'nombre': p.nombre,
+            'descripcion': p.descripcion,
+            'precio': float(p.precio),
+            'talla': p.talla,
+            'color': p.color,
+            'imagen_url': f"{current_app.config['BASE_URL']}{p.imagen_url}" if p.imagen_url else None,
+            'solicitable': p.solicitable,
+            'fecha_agregado': p.fecha_agregado.isoformat(),
+            'estacion': p.prendas_categorias[0].estacion if p.prendas_categorias else None,
+            'categorias': [rel.categoria.nombre for rel in p.prendas_categorias],
+        } for p in prendas
+    ]), 200
 
 
-from datetime import datetime
+
+
 
 @prendas_bp.route('/<int:prenda_id>/solicitar', methods=['POST'])
 @jwt_required()

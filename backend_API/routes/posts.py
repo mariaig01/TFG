@@ -260,6 +260,7 @@ def toggle_like(post_id):
         db.session.delete(like_existente)
         db.session.commit()
 
+        # Log correcto
         if logs_collection is not None:
             logs_collection.insert_one({
                 "evento": "like_eliminado",
@@ -268,7 +269,7 @@ def toggle_like(post_id):
                 "timestamp": datetime.utcnow()
             })
 
-        return jsonify({'message': 'Like eliminado'}), 200
+        nuevo_estado = False
     else:
         nuevo_like = Like(
             id_usuario=user_id,
@@ -278,15 +279,26 @@ def toggle_like(post_id):
         db.session.add(nuevo_like)
         db.session.commit()
 
+        # Log correcto
         if logs_collection is not None:
             logs_collection.insert_one({
-                "evento": "like_eliminado",
+                "evento": "like_añadido",
                 "usuario_id": user_id,
                 "post_id": post_id,
                 "timestamp": datetime.utcnow()
             })
 
-        return jsonify({'message': 'Like añadido'}), 201
+        nuevo_estado = True
+
+    # Contar likes actuales
+    total_likes = Like.query.filter_by(id_publicacion=post_id).count()
+
+    return jsonify({
+        'message': 'Like actualizado',
+        'ha_dado_like': nuevo_estado,
+        'likes_count': total_likes
+    }), 200
+
 
 
 
@@ -324,3 +336,58 @@ def toggle_guardado_publicacion(post_id):
         db.session.add(nuevo)
         db.session.commit()
         return jsonify({'message': 'Guardado', 'guardado': True}), 201
+
+
+@posts_bp.route('/api/<int:post_id>/eliminar', methods=['DELETE'])
+@jwt_required()
+def eliminar_publicacion(post_id):
+    user_id = int(get_jwt_identity())
+
+    publicacion = Post.query.filter_by(id=post_id, id_usuario=user_id).first()
+
+    if not publicacion:
+        return jsonify({'error': 'Publicación no encontrada o no autorizada'}), 404
+
+    # Eliminar imagen física si existe
+    if publicacion.imagen_url:
+        try:
+            nombre_archivo = publicacion.imagen_url.split('/')[-1]
+            ruta_imagen = os.path.join(current_app.root_path, 'static', 'uploads', nombre_archivo)
+            if os.path.exists(ruta_imagen):
+                os.remove(ruta_imagen)
+        except Exception as e:
+            print(f"⚠️ Error al eliminar imagen: {e}")
+
+    db.session.delete(publicacion)
+    db.session.commit()
+
+    return jsonify({'message': 'Publicación eliminada correctamente'}), 200
+
+
+
+@posts_bp.route('/api/<int:post_id>/editar', methods=['PUT'])
+@jwt_required()
+def editar_publicacion(post_id):
+    user_id = int(get_jwt_identity())
+    data = request.get_json()
+
+    publicacion = Post.query.filter_by(id=post_id, id_usuario=user_id).first()
+    if not publicacion:
+        return jsonify({'error': 'Publicación no encontrada o no autorizada'}), 404
+
+    nuevo_contenido = data.get('contenido', '').strip()
+    nueva_visibilidad = data.get('visibilidad', publicacion.visibilidad)
+
+    if not nuevo_contenido:
+        return jsonify({'error': 'El contenido no puede estar vacío'}), 400
+
+    if nueva_visibilidad not in ['publico', 'privado', 'seguidores', 'amigos']:
+        return jsonify({'error': 'Visibilidad no válida'}), 400
+
+    publicacion.contenido = nuevo_contenido
+    publicacion.visibilidad = nueva_visibilidad
+    publicacion.fecha_publicacion = datetime.utcnow()  # opcional
+
+    db.session.commit()
+
+    return jsonify({'message': 'Publicación actualizada con éxito'}), 200

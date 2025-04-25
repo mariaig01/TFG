@@ -442,7 +442,8 @@ def publicaciones_propias():
         'foto_perfil': f"{current_app.config['BASE_URL']}{usuario.foto_perfil}" if usuario.foto_perfil else None,
         'likes_count': len(p.likes),
         'ha_dado_like': any(l.id_usuario == user_id for l in p.likes),
-        'tipo_relacion': 'propia'
+        'tipo_relacion': 'propia',
+        'id_usuario': p.id_usuario
     } for p in publicaciones]), 200
 
 
@@ -511,6 +512,7 @@ def publicaciones_guardadas():
         'imagen_url': f"{current_app.config['BASE_URL']}{p.imagen_url}" if p.imagen_url else None,
         'fecha': p.fecha_publicacion.isoformat(),
         'usuario': p.usuario.username,
+        'id_usuario': p.id_usuario,
         'foto_perfil': f"{current_app.config['BASE_URL']}{p.usuario.foto_perfil}" if p.usuario.foto_perfil else None,
         'likes_count': len(p.likes),
         'ha_dado_like': any(l.id_usuario == user_id for l in p.likes),

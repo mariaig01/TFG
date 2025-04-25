@@ -289,3 +289,28 @@ class SolicitudPrenda(db.Model):
     fecha_solicitud = db.Column(db.DateTime, default=datetime.utcnow)
     fecha_inicio = db.Column(db.DateTime)
     fecha_fin = db.Column(db.DateTime)
+
+
+class Categoria(db.Model):
+    __tablename__ = 'categorias'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    nombre = db.Column(db.String(100), unique=True, nullable=False, index=True)
+
+    def __repr__(self):
+        return f"<Categoria {self.id}: {self.nombre}>"
+
+
+class PrendaCategoria(db.Model):
+    __tablename__ = 'prendas_categorias'
+
+    prenda_id = db.Column(db.Integer, db.ForeignKey('prendas.id', ondelete='CASCADE'), primary_key=True)
+    categoria_id = db.Column(db.Integer, db.ForeignKey('categorias.id', ondelete='CASCADE'), primary_key=True)
+    estacion = db.Column(db.Enum('Primavera', 'Verano', 'Otoño', 'Invierno', 'Cualquiera', name='estacion_enum'), nullable=False)
+
+    # Relaciones (opcional, pero recomendable para hacer joins más fáciles)
+    prenda = db.relationship('Prenda', backref=db.backref('prendas_categorias', cascade='all, delete-orphan'))
+    categoria = db.relationship('Categoria', backref=db.backref('prendas_categorias', cascade='all, delete-orphan'))
+
+    def __repr__(self):
+        return f"<PrendaCategoria prenda_id={self.prenda_id}, categoria_id={self.categoria_id}, estacion={self.estacion}>"
