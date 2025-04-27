@@ -259,6 +259,20 @@ class Prenda(db.Model):
     fecha_agregado = db.Column(db.DateTime, default=datetime.utcnow)
     fecha_modificacion = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     solicitable = db.Column(db.Boolean, default=False)
+    tipo = db.Column(db.Enum(
+        'Camisa', 'Camiseta', 'Blusa', 'Top', 'Vestido', 'Falda', 'Pantalón',
+        'Vaqueros', 'Shorts', 'Sudadera', 'Jersey', 'Rebeca', 'Corset',
+        'Chaqueta', 'Abrigo', 'Blazer', 'Chaleco', 'Cárdigan', 'Mono', 'Traje',
+        'Chándal', 'Mallas', 'Bikini', 'Polo', 'Zapato', 'Bota', 'Sandalia',
+        'Tacón', 'Zapatilla deportiva', 'Cinturón', 'Bufanda', 'Pañuelo',
+        'Medias', 'Gorro', 'Sombrero', 'Guantes', 'Bolso', 'Mochila',
+        'Reloj', 'Pulsera', 'Collar', 'Pendientes', 'Gafas de sol', 'Otro',
+        name='tipo_prenda_enum'
+    ), nullable=False, default='Otro')
+    emocion = db.Column(db.Enum(
+        'feliz', 'triste', 'enfadado', 'sorprendido', 'miedo', 'asco', 'neutro',
+        name='emocion_enum'
+    ), nullable=True)
 
     usuario = db.relationship('User', backref='prendas')
 
@@ -274,7 +288,10 @@ class Prenda(db.Model):
             'imagen_url': self.imagen_url,
             'fecha_agregado': self.fecha_agregado.isoformat() if self.fecha_agregado else None,
             'fecha_modificacion': self.fecha_modificacion.isoformat() if self.fecha_modificacion else None,
-            'solicitable': self.solicitable
+            'solicitable': self.solicitable,
+            'tipo': self.tipo,
+            'emocion': self.emocion
+
         }
 
 

@@ -5,6 +5,67 @@ DO $$ BEGIN
     END IF;
 END $$;
 
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'emocion_enum') THEN
+        CREATE TYPE emocion_enum AS ENUM ('feliz', 'triste', 'enfadado', 'sorprendido', 'miedo', 'asco', 'neutro');
+    END IF;
+END $$;
+
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'tipo_prenda_enum') THEN
+        CREATE TYPE tipo_prenda_enum AS ENUM (
+            'Camisa',
+            'Camiseta',
+            'Blusa',
+            'Top',
+            'Vestido',
+            'Falda',
+            'Pantalón',
+            'Vaqueros',
+            'Shorts',
+            'Sudadera',
+            'Jersey',
+            'Rebeca',
+            'Corset',
+            'Chaqueta',
+            'Abrigo',
+            'Blazer',
+            'Chaleco',
+            'Cárdigan',
+            'Mono',
+            'Traje',
+            'Chándal',
+            'Mallas',
+            'Bikini',
+            'Polo',
+            'Zapato',
+            'Bota',
+            'Sandalia',
+            'Tacón',
+            'Zapatilla deportiva',
+            'Cinturón',
+            'Bufanda',
+            'Pañuelo',
+            'Medias',
+            'Gorro',
+            'Sombrero',
+            'Guantes',
+            'Bolso',
+            'Mochila',
+            'Reloj',
+            'Pulsera',
+            'Collar',
+            'Pendientes',
+            'Gafas de sol',
+            'Otro'
+        );
+    END IF;
+END
+$$;
+
+
 
 -- Tabla usuarios
 CREATE TABLE usuarios (
@@ -42,7 +103,9 @@ CREATE TABLE prendas (
     color VARCHAR(30),
     imagen_url VARCHAR(255),
     fecha_agregado TIMESTAMP,
-    fecha_modificacion TIMESTAMP
+    fecha_modificacion TIMESTAMP,
+    tipo tipo_prenda_enum NOT NULL DEFAULT 'Otro',
+    emocion emocion_enum NOT NULL DEFAULT 'neutro'
 );
 
 -- Tabla preferencias

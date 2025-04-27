@@ -166,7 +166,8 @@ def feed_general():
             'fecha': p.fecha_publicacion.isoformat(),
             'usuario': p.usuario.username,
             'foto_perfil': f"{current_app.config['BASE_URL']}{p.usuario.foto_perfil}" if p.usuario.foto_perfil else None,
-            'likes_count': len(p.likes),
+            'likes_count': Like.query.filter_by(id_publicacion=p.id).count(),
+
             'ha_dado_like': any(l.id_usuario == user_id for l in p.likes),
             'tipo_relacion': tipo_relacion,
             'guardado': Favorito.query.filter_by(id_usuario=user_id, id_publicacion=p.id).first() is not None

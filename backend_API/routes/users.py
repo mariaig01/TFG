@@ -5,6 +5,7 @@ from datetime import datetime
 from extensions import logs_collection
 import os
 from werkzeug.utils import secure_filename
+import uuid
 
 users_bp = Blueprint('users', __name__, url_prefix='/usuarios')
 
@@ -372,8 +373,7 @@ def obtener_amigos(user_id):
 @users_bp.route('/subir-imagen-perfil', methods=['POST'])
 @jwt_required()
 def subir_imagen_perfil():
-    from flask import current_app
-    import uuid
+
 
     usuario_id = int(get_jwt_identity())
     usuario = User.query.get(usuario_id)
@@ -398,6 +398,17 @@ def subir_imagen_perfil():
         if file_size > 5 * 1024 * 1024:
             return jsonify({'error': 'La imagen excede el tamaño máximo (5 MB)'}), 400
 
+        # Eliminar foto anterior si existe
+        if usuario.foto_perfil:
+            try:
+                from pathlib import Path
+                relative_path = usuario.foto_perfil.replace('/usuarios/profile-images/', 'static/profile_images/')
+                old_path = Path(current_app.root_path) / relative_path
+                if old_path.exists():
+                    old_path.unlink()
+            except Exception as e:
+                print(f"Error eliminando imagen anterior: {e}")
+
         # Crear nombre único y ruta
         filename = secure_filename(imagen_file.filename)
         unique_name = f"{uuid.uuid4().hex}.{ext}"
@@ -416,6 +427,7 @@ def subir_imagen_perfil():
 
     except Exception as e:
         return jsonify({'error': f'Error al guardar imagen: {str(e)}'}), 500
+
 
 
 @users_bp.route('/profile-images/<filename>')
@@ -547,13 +559,69 @@ def publicaciones_de_usuario(user_id):
 def obtener_relacion_usuario(user_id):
     actual_id = int(get_jwt_identity())
 
-    seguimiento = Seguimiento.query.filter_by(
-        id_seguidor=actual_id,
-        id_seguido=user_id
+    amistad = Seguimiento.query.filter(
+        ((Seguimiento.id_seguidor == actual_id) & (Seguimiento.id_seguido == user_id)) |
+        ((Seguimiento.id_seguidor == user_id) & (Seguimiento.id_seguido == actual_id)),
+        Seguimiento.tipo == 'amigo',
+        Seguimiento.estado == 'aceptada'
     ).first()
 
-    return jsonify({
-        'relacion': seguimiento.tipo if seguimiento else None,   # 'amigo' o 'seguidor'
-        'estado': seguimiento.estado if seguimiento else None,   # 'pendiente' o None
-    }), 200
+    seguimiento = Seguimiento.query.filter_by(
+        id_seguidor=actual_id,
+        id_seguido=user_id,
+        tipo='seguidor'
+    ).first()
 
+    response = {}
+
+    if amistad:
+        response['relacion'] = 'amigo'
+        response['estado'] = 'aceptada'
+    elif seguimiento:
+        response['relacion'] = 'seguidor'
+        response['estado'] = seguimiento.estado
+    else:
+        response['relacion'] = None
+        response['estado'] = None
+
+    solicitud_seguidor = Seguimiento.query.filter_by(
+        id_seguidor=actual_id,
+        id_seguido=user_id,
+        tipo='seguidor',
+        estado='pendiente'
+    ).first()
+
+    if solicitud_seguidor:
+        response['estado_seguidor'] = 'pendiente'
+
+    return jsonify(response), 200
+
+@users_bp.route('/editar', methods=['PUT'])
+@jwt_required()
+def editar_usuario():
+    usuario_id = int(get_jwt_identity())
+    user = User.query.get(usuario_id)
+
+    if not user:
+        return jsonify({'error': 'Usuario no encontrado'}), 404
+
+    data = request.get_json()
+
+    nuevo_username = data.get('username', user.username)
+
+    # Comprobar si el nuevo username está en uso por otro usuario
+    if nuevo_username != user.username:
+        username_existente = User.query.filter_by(username=nuevo_username).first()
+        if username_existente:
+            return jsonify({'error': 'El nombre de usuario ya está en uso'}), 400
+
+    # Actualizamos los campos
+    user.nombre = data.get('nombre', user.nombre)
+    user.apellido = data.get('apellido', user.apellido)
+    user.bio = data.get('bio', user.bio)
+    user.username = nuevo_username
+    user.fecha_modificacion = datetime.utcnow()
+
+    db.session.commit()
+
+    return jsonify({'message': 'Perfil actualizado con éxito'}), 200

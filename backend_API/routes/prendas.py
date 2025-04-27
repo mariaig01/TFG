@@ -7,6 +7,7 @@ from extensions import db, logs_collection
 from models import Prenda, User, SolicitudPrenda, PrendaCategoria, Categoria
 from datetime import datetime
 from utils.image_processing import remove_background_and_white_bg
+from sqlalchemy import text
 
 prendas_bp = Blueprint('prendas', __name__, url_prefix='/prendas')
 
@@ -23,9 +24,10 @@ def crear_prenda():
     solicitable = request.form.get('solicitable') == 'true'
     imagen_file = request.files.get('imagen')
     eliminar_fondo = request.form.get('eliminar_fondo', 'true').lower() == 'true'
-
+    tipo = request.form.get('tipo')
     categorias_raw = request.form.get('categorias', '')
     estacion = request.form.get('estacion', 'Cualquiera')
+    emocion = request.form.get('emocion', 'neutro')
 
     if not nombre or not precio or not imagen_file:
         return jsonify({'error': 'Nombre, precio e imagen son obligatorios'}), 400
@@ -63,7 +65,9 @@ def crear_prenda():
         imagen_url=imagen_url,
         fecha_agregado=datetime.utcnow(),
         fecha_modificacion=datetime.utcnow(),
-        solicitable=solicitable
+        solicitable=solicitable,
+        tipo=tipo,
+        emocion=emocion
     )
 
     db.session.add(nueva_prenda)
@@ -97,10 +101,12 @@ def crear_prenda():
             "nombre": nombre,
             "precio": precio,
             "imagen_url": imagen_url,
+            "emocion": emocion,
             "timestamp": datetime.utcnow()
         })
 
     return jsonify({'message': 'Prenda creada con éxito'}), 201
+
 
 
 @prendas_bp.route('/uploads/<filename>')
@@ -124,11 +130,13 @@ def obtener_mis_prendas():
             'precio': float(p.precio),
             'talla': p.talla,
             'color': p.color,
+            'tipo': p.tipo,
             'imagen_url': f"{current_app.config['BASE_URL']}{p.imagen_url}" if p.imagen_url else None,
             'solicitable': p.solicitable,
             'fecha_agregado': p.fecha_agregado.isoformat(),
             'estacion': p.prendas_categorias[0].estacion if p.prendas_categorias else None,
             'categorias': [rel.categoria.nombre for rel in p.prendas_categorias],
+            'emocion': p.emocion
         } for p in prendas
     ]), 200
 
@@ -150,15 +158,16 @@ def editar_prenda(prenda_id):
     prenda.precio = data.get('precio', prenda.precio)
     prenda.talla = data.get('talla', prenda.talla)
     prenda.color = data.get('color', prenda.color)
+    prenda.tipo = data.get('tipo', prenda.tipo)
     prenda.solicitable = data.get('solicitable', prenda.solicitable)
     prenda.fecha_modificacion = datetime.utcnow()
+    prenda.emocion = data.get('emocion', prenda.emocion)
 
     categorias = data.get('categorias', [])
     estacion = data.get('estacion', 'Cualquiera')
 
     if categorias:
         # Borrar las relaciones anteriores
-        from models import PrendaCategoria, Categoria
         PrendaCategoria.query.filter_by(prenda_id=prenda.id).delete()
 
         for nombre_categoria in categorias:
@@ -227,11 +236,13 @@ def obtener_prendas_usuario(user_id):
             'precio': float(p.precio),
             'talla': p.talla,
             'color': p.color,
+            'tipo': p.tipo,
             'imagen_url': f"{current_app.config['BASE_URL']}{p.imagen_url}" if p.imagen_url else None,
             'solicitable': p.solicitable,
             'fecha_agregado': p.fecha_agregado.isoformat(),
             'estacion': p.prendas_categorias[0].estacion if p.prendas_categorias else None,
             'categorias': [rel.categoria.nombre for rel in p.prendas_categorias],
+            'emocion': p.emocion
         } for p in prendas
     ]), 200
 
@@ -338,3 +349,35 @@ def rechazar_solicitud_prenda(solicitud_id):
 
     return jsonify({"message": "Solicitud de prenda rechazada"}), 200
 
+
+
+@prendas_bp.route('/<int:prenda_id>/prestamo-actual', methods=['GET'])
+@jwt_required()
+def estado_prestamo_prenda(prenda_id):
+    now = datetime.now()
+
+    solicitud = SolicitudPrenda.query.filter_by(
+        id_prenda=prenda_id,
+        estado='aceptada'
+    ).filter(
+        SolicitudPrenda.fecha_inicio <= now,
+        SolicitudPrenda.fecha_fin >= now
+    ).first()
+
+    if solicitud:
+        return jsonify({
+            "en_prestamo": True,
+            "fecha_fin": solicitud.fecha_fin.isoformat()
+        })
+    else:
+        return jsonify({
+            "en_prestamo": False
+        })
+
+
+@prendas_bp.route('/api/tipos', methods=['GET'])
+def obtener_tipos_prenda():
+    tipos = []
+    result = db.session.execute(text("SELECT unnest(enum_range(NULL::tipo_prenda_enum))")).fetchall()
+    tipos = [row[0] for row in result]
+    return jsonify(tipos), 200
