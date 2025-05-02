@@ -34,9 +34,8 @@ def create_app():
 
 app = create_app()
 
-# Importa handlers para registrar los eventos socket
 import socketio_handlers
 
 if __name__ == '__main__':
-    print("🚀 Ejecutando servidor Flask con soporte WebSocket (eventlet)")
+    print("Ejecutando servidor Flask con soporte WebSocket (eventlet)")
     socketio.run(app, host='0.0.0.0', port=5000)

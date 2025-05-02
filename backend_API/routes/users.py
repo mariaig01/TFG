@@ -9,6 +9,7 @@ import uuid
 
 users_bp = Blueprint('users', __name__, url_prefix='/usuarios')
 
+#no se usa actualmente en el frontend
 @users_bp.route('/seguidos-y-amigos', methods=['GET'])
 @jwt_required()
 def obtener_seguidos_y_amigos():
@@ -317,6 +318,7 @@ def obtener_usuario_por_id(user_id):
         return jsonify({'error': 'Usuario no encontrado'}), 404
 
     return jsonify(usuario.to_dict()), 200
+
 
 @users_bp.route('/<int:user_id>/seguidores', methods=['GET'])
 @jwt_required()

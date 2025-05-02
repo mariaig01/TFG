@@ -1,6 +1,6 @@
 # routes/groups.py
 import os
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from models import db, Grupo, GrupoUsuario, MensajeGrupo, User
 from werkzeug.utils import secure_filename
@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime
 from extensions import logs_collection
 
-UPLOAD_FOLDER = 'static/group_images'
+
 
 groups_bp = Blueprint('groups', __name__, url_prefix='/groups')
 
@@ -25,8 +25,10 @@ def get_user_groups():
 @groups_bp.route('/create', methods=['POST'])
 @jwt_required()
 def crear_grupo():
+    from flask import current_app  # importar aquí, dentro de la función
+
     nombre = request.form.get('nombre')
-    imagen_file = request.files.get('imagen')  # Aquí obtenemos el archivo
+    imagen_file = request.files.get('imagen')
 
     if not nombre:
         return jsonify({"error": "El nombre del grupo es obligatorio"}), 400
@@ -37,8 +39,11 @@ def crear_grupo():
     if imagen_file:
         extension = imagen_file.filename.rsplit('.', 1)[-1].lower()
         filename = f"{uuid.uuid4()}.{extension}"
-        path = os.path.join(UPLOAD_FOLDER, filename)
-        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+        upload_folder = os.path.join(current_app.root_path, 'static', 'group_images')
+        os.makedirs(upload_folder, exist_ok=True)
+
+        path = os.path.join(upload_folder, filename)
         imagen_file.save(path)
 
     nuevo_grupo = Grupo(
@@ -63,6 +68,63 @@ def crear_grupo():
     return jsonify(nuevo_grupo.to_dict()), 201
 
 
+@groups_bp.route('/<int:group_id>/delete', methods=['DELETE'])
+@jwt_required()
+def eliminar_grupo(group_id):
+    user_id = int(get_jwt_identity())
+
+    grupo = Grupo.query.get(group_id)
+    if not grupo:
+        return jsonify({"error": "Grupo no encontrado"}), 404
+
+    if grupo.creador != user_id:
+        return jsonify({"error": "Solo el creador puede eliminar el grupo"}), 403
+
+    # Eliminar imagen del grupo si existe
+    if grupo.imagen:
+        try:
+            from pathlib import Path
+            from urllib.parse import urlparse
+
+            # Convertir la URL relativa a ruta de archivo
+            relative_path = grupo.imagen.replace('/groups/images/', 'static/group_images/')
+            image_path = Path(current_app.root_path) / relative_path
+
+            if image_path.exists():
+                image_path.unlink()
+                print(f"🗑 Imagen del grupo eliminada: {image_path}")
+            else:
+                print(f"Imagen no encontrada: {image_path}")
+
+        except Exception as e:
+            print(f"Error eliminando imagen del grupo: {e}")
+
+    # Eliminar relaciones con usuarios
+    GrupoUsuario.query.filter_by(id_grupo=group_id).delete()
+
+    # Eliminar mensajes del grupo
+    MensajeGrupo.query.filter_by(id_grupo=group_id).delete()
+
+    print(f"🧪 grupo_id: {group_id}")
+    print(f"🧪 user_id del token: {user_id}")
+    print(f"🧪 grupo.creador: {grupo.creador}")
+
+    db.session.delete(grupo)
+    db.session.commit()
+
+    if logs_collection is not None:
+        logs_collection.insert_one({
+            "evento": "grupo_eliminado",
+            "grupo_id": group_id,
+            "usuario_id": user_id,
+            "timestamp": datetime.utcnow()
+        })
+
+    return jsonify({"msg": "Grupo eliminado correctamente"}), 200
+
+
+
+
 @groups_bp.route('/images/<filename>')
 def serve_group_image(filename):
     from flask import current_app, send_from_directory
@@ -71,23 +133,7 @@ def serve_group_image(filename):
 
 
 
-@groups_bp.route('/<int:group_id>/messages', methods=['GET'])
-@jwt_required()
-def obtener_mensajes_grupo(group_id):
-    usuario_id = get_jwt_identity()
 
-    grupo = Grupo.query.get(group_id)
-    if not grupo:
-        return jsonify({"error": "Grupo no encontrado"}), 404
-
-    miembro = GrupoUsuario.query.filter_by(id_usuario=usuario_id, id_grupo=group_id).first()
-    if not miembro:
-        return jsonify({"error": "No perteneces a este grupo"}), 403
-
-    mensajes = MensajeGrupo.query.filter_by(id_grupo=group_id)\
-        .order_by(MensajeGrupo.fecha_envio.asc()).all()
-
-    return jsonify([m.to_dict() for m in mensajes]), 200
 
 @groups_bp.route('/<int:group_id>/info', methods=['GET'])
 @jwt_required()
@@ -101,6 +147,7 @@ def info_grupo(group_id):
 
     return jsonify({
         "creador": creador.username if creador else "Desconocido",
+        "id_creador": creador.id,
         "num_miembros": miembros
     }), 200
 

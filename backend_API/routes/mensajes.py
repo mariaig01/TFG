@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from models import db, Mensaje, User, MensajeGrupo, GrupoUsuario
+from models import db, Mensaje, User, MensajeGrupo, GrupoUsuario, Grupo
 from extensions import socketio
 from datetime import datetime
 from extensions import logs_collection
@@ -100,8 +100,20 @@ def enviar_mensaje_grupo(id_grupo):
 @mensajes_bp.route('/grupo/<int:id_grupo>', methods=['GET'])
 @jwt_required()
 def obtener_mensajes_grupo(id_grupo):
-    mensajes = MensajeGrupo.query.filter_by(id_grupo=id_grupo).order_by(MensajeGrupo.fecha_envio.asc()).all()
-    return jsonify([m.to_dict() for m in mensajes])
+    id_usuario = get_jwt_identity()
+
+    grupo = Grupo.query.get(id_grupo)
+    if not grupo:
+        return jsonify({'error': 'Grupo no encontrado'}), 404
+
+    miembro = GrupoUsuario.query.filter_by(id_usuario=id_usuario, id_grupo=id_grupo).first()
+    if not miembro:
+        return jsonify({'error': 'No perteneces a este grupo'}), 403
+
+    mensajes = MensajeGrupo.query.filter_by(id_grupo=id_grupo)\
+        .order_by(MensajeGrupo.fecha_envio.asc()).all()
+
+    return jsonify([m.to_dict() for m in mensajes]), 200
 
 
 @mensajes_bp.route('/usuarios-conversacion', methods=['GET'])

@@ -201,13 +201,16 @@ CREATE TABLE mensajes_grupo (
     fecha_envio TIMESTAMP
 );
 
--- Tabla preferencias_categorias
-CREATE TABLE preferencias_categorias (
-    preferencias_id INT REFERENCES preferencias(id) ON DELETE CASCADE,
-    categoria_id INT REFERENCES categorias(id) ON DELETE CASCADE,
-    estacion estacion_enum NOT NULL,
-    PRIMARY KEY (preferencias_id, categoria_id)
+-- Tabla preferencias_tipo_categoria
+CREATE TABLE preferencias_tipo_categoria (
+    id SERIAL PRIMARY KEY,
+    id_usuario INT REFERENCES usuarios(id) ON DELETE CASCADE,
+    tipo_prenda tipo_prenda_enum NOT NULL,
+    id_categoria INT REFERENCES categorias(id) ON DELETE CASCADE,
+    color_preferido VARCHAR(30),
+    talla_preferida VARCHAR(10)
 );
+
 
 -- Tabla prendas_categorias
 CREATE TABLE prendas_categorias (
@@ -229,4 +232,14 @@ CREATE TABLE solicitudes_prenda (
     fecha_fin TIMESTAMP
 );
 
+-- Tabla caracteristicas_publicacion
+CREATE TABLE caracteristicas_publicacion (
+    id SERIAL PRIMARY KEY,
+    id_publicacion INT UNIQUE REFERENCES publicaciones(id) ON DELETE CASCADE,
+    colores_detectados TEXT[], 
+    categorias_detectadas TEXT[], 
+    tipo_prendas_detectadas tipo_prenda_enum[],
+    estacion_deducida estacion_enum, 
+    embedding_visual JSON 
+);
 
