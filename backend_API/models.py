@@ -293,17 +293,6 @@ class Prenda(db.Model):
         }
 
 
-class SolicitudPrenda(db.Model):
-    __tablename__ = 'solicitudes_prenda'
-
-    id = db.Column(db.Integer, primary_key=True)
-    id_prenda = db.Column(db.Integer, db.ForeignKey('prendas.id', ondelete='CASCADE'))
-    id_remitente = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='CASCADE'))
-    id_destinatario = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='CASCADE'))
-    estado = db.Column(db.String(20), default='pendiente')
-    fecha_solicitud = db.Column(db.DateTime, default=datetime.utcnow)
-    fecha_inicio = db.Column(db.DateTime)
-    fecha_fin = db.Column(db.DateTime)
 
 
 class Categoria(db.Model):
@@ -329,3 +318,17 @@ class PrendaCategoria(db.Model):
 
     def __repr__(self):
         return f"<PrendaCategoria prenda_id={self.prenda_id}, categoria_id={self.categoria_id}, estacion={self.estacion}>"
+
+
+
+class SolicitudPrenda(db.Model):
+    __tablename__ = 'solicitudes_prenda'
+
+    id = db.Column(db.Integer, primary_key=True)
+    id_prenda = db.Column(db.Integer, db.ForeignKey('prendas.id', ondelete='CASCADE'))
+    id_remitente = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='CASCADE'))
+    id_destinatario = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='CASCADE'))
+    estado = db.Column(db.String(20), default='pendiente')
+    fecha_solicitud = db.Column(db.DateTime, default=datetime.utcnow)
+    fecha_inicio = db.Column(db.DateTime)
+    fecha_fin = db.Column(db.DateTime)

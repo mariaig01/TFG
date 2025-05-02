@@ -7,6 +7,10 @@ import '../env.dart';
 
 class CreatePrendaViewModel with ChangeNotifier {
   String? errorMessage;
+  List<String> tiposPrenda = [];
+  bool cargandoTipos = false;
+  String? tipoSeleccionado;
+  String? emocionSeleccionada = 'neutro';
 
   Future<void> createPrenda({
     required String nombre,
@@ -45,6 +49,8 @@ class CreatePrendaViewModel with ChangeNotifier {
       request.fields['eliminar_fondo'] = eliminarFondo.toString();
       request.fields['categorias'] = categorias.join(',');
       request.fields['estacion'] = estacion;
+      request.fields['tipo'] = tipoSeleccionado ?? '';
+      request.fields['emocion'] = emocionSeleccionada ?? 'neutro';
 
       if (imagen != null) {
         final imagenMultipart = await http.MultipartFile.fromPath(
@@ -71,6 +77,34 @@ class CreatePrendaViewModel with ChangeNotifier {
       errorMessage = 'Error inesperado: $e';
     }
 
+    notifyListeners();
+  }
+
+  Future<void> cargarTiposDesdeBackend() async {
+    cargandoTipos = true;
+    notifyListeners();
+
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('jwt_token');
+
+    final url = Uri.parse('$baseURL/prendas/api/tipos');
+
+    try {
+      final res = await http.get(
+        url,
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (res.statusCode == 200) {
+        tiposPrenda = List<String>.from(jsonDecode(res.body));
+      } else {
+        print('❌ Error al obtener tipos: ${res.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Excepción al obtener tipos: $e');
+    }
+
+    cargandoTipos = false;
     notifyListeners();
   }
 }

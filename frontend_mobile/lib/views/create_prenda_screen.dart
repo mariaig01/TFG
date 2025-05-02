@@ -34,6 +34,16 @@ class _CreatePrendaScreenState extends State<CreatePrendaScreen> {
     'Cualquiera',
   ];
 
+  final List<String> emociones = [
+    'feliz',
+    'triste',
+    'enfadado',
+    'sorprendido',
+    'miedo',
+    'asco',
+    'neutro',
+  ];
+
   List<String> categorias = [];
   String? estacionSeleccionada;
   File? imagenSeleccionada;
@@ -49,6 +59,18 @@ class _CreatePrendaScreenState extends State<CreatePrendaScreen> {
         imagenSeleccionada = File(pickedFile.path);
       });
     }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final viewModel = Provider.of<CreatePrendaViewModel>(
+      context,
+      listen: false,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      viewModel.cargarTiposDesdeBackend();
+    });
   }
 
   @override
@@ -229,6 +251,44 @@ class _CreatePrendaScreenState extends State<CreatePrendaScreen> {
                 ),
               ),
               const SizedBox(height: 12),
+              Consumer<CreatePrendaViewModel>(
+                builder: (context, viewModel, _) {
+                  if (viewModel.cargandoTipos) {
+                    return const CircularProgressIndicator();
+                  }
+
+                  return DropdownButtonFormField<String>(
+                    decoration: InputDecoration(
+                      labelText: 'Tipo de prenda',
+                      labelStyle: const TextStyle(color: Color(0xFFFFB5B2)),
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: const BorderSide(color: Color(0xFFFFB5B2)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: const BorderSide(
+                          color: Color(0xFFFFB5B2),
+                          width: 2,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    value: viewModel.tipoSeleccionado,
+                    items:
+                        viewModel.tiposPrenda.map((tipo) {
+                          return DropdownMenuItem<String>(
+                            value: tipo,
+                            child: Text(tipo),
+                          );
+                        }).toList(),
+                    onChanged: (value) {
+                      viewModel.tipoSeleccionado = value!;
+                    },
+                  );
+                },
+              ),
+
+              const SizedBox(height: 12),
               TextField(
                 controller: precioController,
                 keyboardType: const TextInputType.numberWithOptions(
@@ -336,6 +396,40 @@ class _CreatePrendaScreenState extends State<CreatePrendaScreen> {
                   ),
                 ],
               ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: vm.emocionSeleccionada,
+                decoration: InputDecoration(
+                  labelText: 'Emoción',
+                  labelStyle: const TextStyle(color: Color(0xFFFFB5B2)),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: const BorderSide(color: Color(0xFFFFB5B2)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: const BorderSide(
+                      color: Color(0xFFFFB5B2),
+                      width: 2,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                items:
+                    emociones.map((emocion) {
+                      return DropdownMenuItem<String>(
+                        value: emocion,
+                        child: Text(
+                          emocion[0].toUpperCase() + emocion.substring(1),
+                        ),
+                      );
+                    }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    vm.emocionSeleccionada = value!;
+                  });
+                },
+              ),
+
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 decoration: InputDecoration(
