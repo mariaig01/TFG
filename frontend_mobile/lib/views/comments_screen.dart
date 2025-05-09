@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/comments_viewmodel.dart';
+import 'package:intl/intl.dart';
 
 class CommentsScreen extends StatefulWidget {
   final int postId;
@@ -46,11 +47,19 @@ class _CommentsScreenState extends State<CommentsScreen> {
                       itemBuilder: (context, index) {
                         final c = vm.comentarios[index];
                         return ListTile(
-                          leading: const Icon(Icons.person),
-                          title: Text(c['autor']),
-                          subtitle: Text(c['contenido']),
+                          leading: CircleAvatar(
+                            backgroundImage:
+                                c.fotoAutor != null
+                                    ? NetworkImage(c.fotoAutor!)
+                                    : const AssetImage(
+                                          'assets/default_avatar.png',
+                                        )
+                                        as ImageProvider,
+                          ),
+                          title: Text(c.autor),
+                          subtitle: Text(c.texto),
                           trailing: Text(
-                            c['fecha'].substring(11, 16),
+                            DateFormat('dd/MM/yyyy HH:mm').format(c.fecha),
                             style: const TextStyle(fontSize: 12),
                           ),
                         );
@@ -66,18 +75,16 @@ class _CommentsScreenState extends State<CommentsScreen> {
                   child: TextField(
                     controller: _controller,
                     decoration: const InputDecoration(
-                      hintText: "Añadir un comentario...",
-                      border: OutlineInputBorder(),
+                      hintText: 'Escribe un comentario...',
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
                 IconButton(
                   icon: const Icon(Icons.send, color: Color(0xFFFFB5B2)),
-                  onPressed: () {
+                  onPressed: () async {
                     final texto = _controller.text.trim();
                     if (texto.isNotEmpty) {
-                      vm.enviarComentario(widget.postId, texto);
+                      await vm.enviarComentario(widget.postId, texto);
                       _controller.clear();
                     }
                   },

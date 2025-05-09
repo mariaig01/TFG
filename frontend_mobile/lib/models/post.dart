@@ -1,7 +1,8 @@
 class PostModel {
   final int id;
   final String contenido;
-  final String imagenUrl;
+  final String visibilidad;
+  final String? imagenUrl;
   final String fecha;
   final String usuario;
   final String? fotoPerfil;
@@ -14,7 +15,8 @@ class PostModel {
   PostModel({
     required this.id,
     required this.contenido,
-    required this.imagenUrl,
+    required this.visibilidad,
+    this.imagenUrl,
     required this.fecha,
     required this.usuario,
     this.fotoPerfil,
@@ -29,7 +31,8 @@ class PostModel {
     return PostModel(
       id: json['id'],
       contenido: json['contenido'],
-      imagenUrl: json['imagen_url'],
+      visibilidad: json['visibilidad'],
+      imagenUrl: json['imagen_url'] as String?,
       fecha: json['fecha'],
       usuario: json['usuario'],
       fotoPerfil: json['foto_perfil'],
@@ -45,10 +48,12 @@ class PostModel {
     int? likesCount,
     bool? guardado,
     String? contenido,
+    String? visibilidad,
   }) {
     return PostModel(
       id: id,
       contenido: contenido ?? this.contenido,
+      visibilidad: visibilidad ?? this.visibilidad,
       imagenUrl: imagenUrl,
       fecha: fecha,
       usuario: usuario,

@@ -3,10 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../env.dart';
+import '../models/user.dart';
+import '../models/group.dart';
 
 class SearchViewModel extends ChangeNotifier {
-  List<Map<String, dynamic>> usuarios = [];
-  List<Map<String, dynamic>> grupos = [];
+  List<UserModel> usuarios = [];
+  List<GroupModel> grupos = [];
+
   bool isLoading = false;
 
   Future<void> buscar(String query) async {
@@ -26,8 +29,12 @@ class SearchViewModel extends ChangeNotifier {
 
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
-        usuarios = List<Map<String, dynamic>>.from(data['usuarios']);
-        grupos = List<Map<String, dynamic>>.from(data['grupos']);
+        usuarios = List<UserModel>.from(
+          data['usuarios'].map((u) => UserModel.fromJson(u)),
+        );
+        grupos = List<GroupModel>.from(
+          data['grupos'].map((g) => GroupModel.fromJson(g)),
+        );
       } else {
         usuarios = [];
         grupos = [];

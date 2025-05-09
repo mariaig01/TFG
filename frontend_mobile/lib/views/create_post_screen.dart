@@ -280,7 +280,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     await vm.createPost(
                       contenido: contentController.text.trim(),
                       visibilidad: selectedVisibility,
-                      imagen: selectedImage,
+                      imagen: selectedImage ?? File(''),
                     );
 
                     if (vm.errorMessage == null) {

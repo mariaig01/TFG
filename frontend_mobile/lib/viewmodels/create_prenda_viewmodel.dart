@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import '../env.dart';
+import '../models/prenda.dart';
+import '../services/http_auth_service.dart';
 
 class CreatePrendaViewModel with ChangeNotifier {
   String? errorMessage;
@@ -12,96 +12,68 @@ class CreatePrendaViewModel with ChangeNotifier {
   String? tipoSeleccionado;
   String? emocionSeleccionada = 'neutro';
 
-  Future<void> createPrenda({
-    required String nombre,
-    required String descripcion,
-    required double precio,
-    required String talla,
-    required String color,
-    required bool solicitable,
-    required File? imagen,
+  Future<Prenda?> createPrenda({
+    required Prenda prenda,
+    required File imagen,
     required bool eliminarFondo,
-    required List<String> categorias,
-    required String estacion,
   }) async {
     errorMessage = null;
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('jwt_token');
+      final uri = Uri.parse("$baseURL/prendas/create");
 
-      if (token == null) {
-        errorMessage = 'No hay token de autenticación';
-        notifyListeners();
-        return;
-      }
+      final fields = {
+        'nombre': prenda.nombre,
+        'descripcion': prenda.descripcion ?? '',
+        'precio': prenda.precio.toString(),
+        'talla': prenda.talla,
+        'color': prenda.color,
+        'solicitable': prenda.solicitable.toString(),
+        'eliminar_fondo': eliminarFondo.toString(),
+        'categorias': prenda.categorias.join(','),
+        'estacion': prenda.estacion ?? 'Cualquiera',
+        'tipo': prenda.tipo,
+        'emocion': prenda.emocion ?? 'neutro',
+      };
 
-      final uri = Uri.parse("$baseURL/prendas/api/create");
-      final request = http.MultipartRequest("POST", uri);
-      request.headers['Authorization'] = 'Bearer $token';
+      final response = await httpMultipartPostConAuth(
+        url: uri,
+        filePath: imagen.path,
+        field: 'imagen',
+        fields: fields,
+      );
 
-      request.fields['nombre'] = nombre;
-      request.fields['descripcion'] = descripcion;
-      request.fields['precio'] = precio.toString();
-      request.fields['talla'] = talla;
-      request.fields['color'] = color;
-      request.fields['solicitable'] = solicitable.toString();
-      request.fields['eliminar_fondo'] = eliminarFondo.toString();
-      request.fields['categorias'] = categorias.join(',');
-      request.fields['estacion'] = estacion;
-      request.fields['tipo'] = tipoSeleccionado ?? '';
-      request.fields['emocion'] = emocionSeleccionada ?? 'neutro';
-
-      if (imagen != null) {
-        final imagenMultipart = await http.MultipartFile.fromPath(
-          'imagen',
-          imagen.path,
-        );
-        request.files.add(imagenMultipart);
+      if (response != null && response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        return Prenda.fromJson(data);
       } else {
-        errorMessage = 'La imagen es obligatoria';
-        notifyListeners();
-        return;
-      }
-
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
-
-      if (response.statusCode == 201) {
-        errorMessage = null;
-      } else {
-        errorMessage =
-            jsonDecode(response.body)['error'] ?? 'Error al subir prenda';
+        final respuesta = response != null ? jsonDecode(response.body) : null;
+        errorMessage = respuesta?['error'] ?? 'Error al subir prenda';
       }
     } catch (e) {
       errorMessage = 'Error inesperado: $e';
     }
 
     notifyListeners();
+    return null;
   }
 
   Future<void> cargarTiposDesdeBackend() async {
     cargandoTipos = true;
     notifyListeners();
 
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('jwt_token');
-
-    final url = Uri.parse('$baseURL/prendas/api/tipos');
+    final url = Uri.parse('$baseURL/prendas/tipos');
 
     try {
-      final res = await http.get(
-        url,
-        headers: {'Authorization': 'Bearer $token'},
-      );
+      final res = await httpGetConAuth(url);
 
       if (res.statusCode == 200) {
         tiposPrenda = List<String>.from(jsonDecode(res.body));
       } else {
-        print('❌ Error al obtener tipos: ${res.statusCode}');
+        print('Error al obtener tipos: ${res.statusCode}');
       }
     } catch (e) {
-      print('❌ Excepción al obtener tipos: $e');
+      print('Excepción al obtener tipos: $e');
     }
 
     cargandoTipos = false;

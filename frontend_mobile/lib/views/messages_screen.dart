@@ -24,15 +24,15 @@ class MessagesScreen extends StatelessWidget {
                     leading: CircleAvatar(
                       radius: 25,
                       backgroundImage:
-                          usuario['foto_perfil'] != null
-                              ? NetworkImage(usuario['foto_perfil'])
+                          usuario.fotoPerfil != null
+                              ? NetworkImage(usuario.fotoPerfil!)
                               : null,
                       child:
-                          usuario['foto_perfil'] == null
+                          usuario.fotoPerfil == null
                               ? const Icon(Icons.person)
                               : null,
                     ),
-                    title: Text(usuario['username'] ?? 'Usuario'),
+                    title: Text(usuario.username),
                     trailing: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,
@@ -43,7 +43,7 @@ class MessagesScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        usuario['tipo'],
+                        usuario.tipo!,
                         style: const TextStyle(color: Colors.pink),
                       ),
                     ),

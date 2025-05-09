@@ -1,3 +1,5 @@
+import 'post.dart';
+
 class GroupMessage {
   final int id;
   final int idGrupo;
@@ -5,7 +7,7 @@ class GroupMessage {
   final String mensaje;
   final DateTime fechaEnvio;
   final String autor;
-  final Map<String, dynamic>? publicacion;
+  final PostModel? publicacion;
 
   GroupMessage({
     required this.id,
@@ -25,7 +27,10 @@ class GroupMessage {
       mensaje: json['mensaje'],
       fechaEnvio: DateTime.parse(json['fecha_envio']),
       autor: json['autor'] ?? 'Anónimo',
-      publicacion: json['publicacion'],
+      publicacion:
+          json['publicacion'] != null
+              ? PostModel.fromJson(json['publicacion'])
+              : null,
     );
   }
 }

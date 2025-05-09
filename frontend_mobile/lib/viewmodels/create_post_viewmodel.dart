@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:io';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../env.dart';
+import '../services/http_auth_service.dart';
 
 class CreatePostViewModel extends ChangeNotifier {
   bool isLoading = false;
@@ -12,56 +11,31 @@ class CreatePostViewModel extends ChangeNotifier {
   Future<void> createPost({
     required String contenido,
     required String visibilidad,
-    File? imagen,
+    required File imagen, // <-- obligatorio
   }) async {
     isLoading = true;
     errorMessage = null;
     successMessage = null;
     notifyListeners();
 
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('jwt_token');
-
-    final uri = Uri.parse('$baseURL/posts/api/create-mobile');
+    final uri = Uri.parse('$baseURL/posts/create-mobile');
 
     try {
-      print("🛰 Enviando publicación...");
-      print("Contenido: $contenido");
-      print("Visibilidad: $visibilidad");
-      print("Imagen: ${imagen?.path}");
-      print("🔐 Token: $token");
+      final response = await httpMultipartPostConAuth(
+        url: uri,
+        filePath: imagen.path,
+        field: 'imagen',
+        fields: {'contenido': contenido, 'visibilidad': visibilidad},
+      );
 
-      final request =
-          http.MultipartRequest('POST', uri)
-            ..headers['Authorization'] = 'Bearer $token'
-            ..fields['contenido'] = contenido
-            ..fields['visibilidad'] = visibilidad;
-
-      if (imagen != null) {
-        request.files.add(
-          await http.MultipartFile.fromPath('imagen', imagen.path),
-        );
-      } else {
-        request.fields['imagen_url'] = '';
-      }
-
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
-
-      print("📬 Código de respuesta: ${response.statusCode}");
-      print("📬 Body: ${response.body}");
-
-      if (response.statusCode == 201) {
+      if (response != null && response.statusCode == 201) {
         successMessage = 'Publicación creada con éxito';
-        errorMessage = null;
       } else {
-        errorMessage = 'Error: ${response.body}';
-        successMessage = null;
+        errorMessage = 'Error: ${response?.body ?? 'sin respuesta'}';
       }
     } catch (e) {
-      print("❌ Error: $e");
+      print("Error: $e");
       errorMessage = 'Error de red o del servidor: $e';
-      successMessage = null;
     } finally {
       isLoading = false;
       notifyListeners();

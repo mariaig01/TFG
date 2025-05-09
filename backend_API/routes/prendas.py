@@ -4,14 +4,15 @@ from flask import Blueprint, request, jsonify, current_app, send_from_directory
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.utils import secure_filename
 from extensions import db, logs_collection
-from models import Prenda, User, SolicitudPrenda, PrendaCategoria, Categoria
+from models import Prenda, User, SolicitudPrenda, PrendaCategoria, Categoria, Favorito
 from datetime import datetime
 from utils.image_processing import remove_background_and_white_bg
 from sqlalchemy import text
+from pytz import timezone
 
 prendas_bp = Blueprint('prendas', __name__, url_prefix='/prendas')
 
-@prendas_bp.route('/api/create', methods=['POST'])
+@prendas_bp.route('/create', methods=['POST'])
 @jwt_required()
 def crear_prenda():
     usuario_id = int(get_jwt_identity())
@@ -29,8 +30,21 @@ def crear_prenda():
     estacion = request.form.get('estacion', 'Cualquiera')
     emocion = request.form.get('emocion', 'neutro')
 
-    if not nombre or not precio or not imagen_file:
-        return jsonify({'error': 'Nombre, precio e imagen son obligatorios'}), 400
+    if not nombre:
+        return jsonify({'error': 'El nombre es obligatorio'}), 400
+
+    if not precio:
+        return jsonify({'error': 'El precio es obligatorio'}), 400
+
+    try:
+        precio = float(precio)
+        if precio < 0:
+            return jsonify({'error': 'El precio no puede ser negativo'}), 400
+    except ValueError:
+        return jsonify({'error': 'El precio debe ser un número válido'}), 400
+
+    if not imagen_file:
+        return jsonify({'error': 'La imagen es obligatoria'}), 400
 
     ext = imagen_file.filename.rsplit('.', 1)[-1].lower()
     if ext not in ['jpg', 'jpeg', 'png']:
@@ -105,7 +119,7 @@ def crear_prenda():
             "timestamp": datetime.utcnow()
         })
 
-    return jsonify({'message': 'Prenda creada con éxito'}), 201
+    return jsonify(nueva_prenda.to_dict()), 201
 
 
 
@@ -115,7 +129,7 @@ def serve_uploaded_prenda(filename):
     return send_from_directory(uploads_dir, filename)
 
 
-@prendas_bp.route('/api/mis-prendas', methods=['GET'])
+@prendas_bp.route('/mis-prendas', methods=['GET'])
 @jwt_required()
 def obtener_mis_prendas():
     usuario_id = int(get_jwt_identity())
@@ -141,7 +155,7 @@ def obtener_mis_prendas():
     ]), 200
 
 
-@prendas_bp.route('/api/<int:prenda_id>/editar', methods=['PUT'])
+@prendas_bp.route('/<int:prenda_id>/editar', methods=['PUT'])
 @jwt_required()
 def editar_prenda(prenda_id):
     usuario_id = int(get_jwt_identity())
@@ -189,7 +203,7 @@ def editar_prenda(prenda_id):
     return jsonify({'message': 'Prenda actualizada con éxito'}), 200
 
 
-@prendas_bp.route('/api/<int:prenda_id>/eliminar', methods=['DELETE'])
+@prendas_bp.route('/<int:prenda_id>/eliminar', methods=['DELETE'])
 @jwt_required()
 def eliminar_prenda(prenda_id):
     usuario_id = int(get_jwt_identity())
@@ -247,9 +261,6 @@ def obtener_prendas_usuario(user_id):
     ]), 200
 
 
-
-
-
 @prendas_bp.route('/<int:prenda_id>/solicitar', methods=['POST'])
 @jwt_required()
 def solicitar_prenda(prenda_id):
@@ -265,7 +276,6 @@ def solicitar_prenda(prenda_id):
     existente = SolicitudPrenda.query.filter_by(
         id_prenda=prenda_id,
         id_remitente=usuario_id,
-        id_destinatario=prenda.id_usuario,
         estado='pendiente'
     ).first()
 
@@ -281,7 +291,6 @@ def solicitar_prenda(prenda_id):
     solicitud = SolicitudPrenda(
         id_prenda=prenda_id,
         id_remitente=usuario_id,
-        id_destinatario=prenda.id_usuario,
         estado='pendiente',
         fecha_inicio=fecha_inicio,
         fecha_fin=fecha_fin,
@@ -297,7 +306,6 @@ def solicitar_prenda(prenda_id):
             "id_solicitud": solicitud.id,
             "id_prenda": prenda_id,
             "id_remitente": usuario_id,
-            "id_destinatario": prenda.id_usuario,
             "fecha_inicio": fecha_inicio.isoformat(),
             "fecha_fin": fecha_fin.isoformat(),
             "timestamp": datetime.utcnow(),
@@ -308,20 +316,20 @@ def solicitar_prenda(prenda_id):
 
 
 
-
 @prendas_bp.route('/solicitudes/<int:solicitud_id>/aceptar', methods=['POST'])
 @jwt_required()
 def aceptar_solicitud_prenda(solicitud_id):
     usuario_id = int(get_jwt_identity())
 
-    solicitud = SolicitudPrenda.query.filter_by(
-        id=solicitud_id,
-        id_destinatario=usuario_id,
-        estado='pendiente'
-    ).first()
+    solicitud = SolicitudPrenda.query.get(solicitud_id)
 
-    if not solicitud:
-        return jsonify({"error": "Solicitud no encontrada o no autorizada"}), 404
+    if not solicitud or solicitud.estado != 'pendiente':
+        return jsonify({"error": "Solicitud no encontrada o ya procesada"}), 404
+
+    # Solo el dueño de la prenda puede aceptar
+    prenda = Prenda.query.get(solicitud.id_prenda)
+    if not prenda or prenda.id_usuario != usuario_id:
+        return jsonify({"error": "No autorizado para aceptar esta solicitud"}), 403
 
     solicitud.estado = 'aceptada'
     db.session.commit()
@@ -335,26 +343,24 @@ def aceptar_solicitud_prenda(solicitud_id):
 def rechazar_solicitud_prenda(solicitud_id):
     usuario_id = int(get_jwt_identity())
 
-    solicitud = SolicitudPrenda.query.filter_by(
-        id=solicitud_id,
-        id_destinatario=usuario_id,
-        estado='pendiente'
-    ).first()
+    solicitud = SolicitudPrenda.query.get(solicitud_id)
 
-    if not solicitud:
-        return jsonify({"error": "Solicitud no encontrada o no autorizada"}), 404
+    if not solicitud or solicitud.estado != 'pendiente':
+        return jsonify({"error": "Solicitud no encontrada o ya procesada"}), 404
+
+    prenda = Prenda.query.get(solicitud.id_prenda)
+    if not prenda or prenda.id_usuario != usuario_id:
+        return jsonify({"error": "No autorizado para rechazar esta solicitud"}), 403
 
     solicitud.estado = 'rechazada'
     db.session.commit()
 
     return jsonify({"message": "Solicitud de prenda rechazada"}), 200
 
-
-
 @prendas_bp.route('/<int:prenda_id>/prestamo-actual', methods=['GET'])
 @jwt_required()
 def estado_prestamo_prenda(prenda_id):
-    now = datetime.now()
+    now = datetime.now(timezone('Europe/Madrid'))
 
     solicitud = SolicitudPrenda.query.filter_by(
         id_prenda=prenda_id,
@@ -375,9 +381,42 @@ def estado_prestamo_prenda(prenda_id):
         })
 
 
-@prendas_bp.route('/api/tipos', methods=['GET'])
+@prendas_bp.route('/tipos', methods=['GET'])
 def obtener_tipos_prenda():
     tipos = []
     result = db.session.execute(text("SELECT unnest(enum_range(NULL::tipo_prenda_enum))")).fetchall()
     tipos = [row[0] for row in result]
     return jsonify(tipos), 200
+
+
+
+
+@prendas_bp.route('/guardar/<int:id_prenda>', methods=['POST'])
+@jwt_required()
+def toggle_guardar_prenda(id_prenda):
+    usuario_id = int(get_jwt_identity())
+
+    # Verificar si la prenda existe
+    prenda = Prenda.query.get(id_prenda)
+    if not prenda:
+        return jsonify({'error': 'Prenda no encontrada'}), 404
+
+    # Verificar si ya está guardada
+    favorito_existente = Favorito.query.filter_by(
+        id_usuario=usuario_id,
+        id_prenda=id_prenda
+    ).first()
+
+    if favorito_existente:
+        db.session.delete(favorito_existente)
+        db.session.commit()
+        return jsonify({'message': 'Prenda desguardada'}), 200
+    else:
+        nuevo_favorito = Favorito(
+            id_usuario=usuario_id,
+            id_prenda=id_prenda,
+            fecha_agregado=datetime.utcnow()
+        )
+        db.session.add(nuevo_favorito)
+        db.session.commit()
+        return jsonify({'message': 'Prenda guardada'}), 201

@@ -1,12 +1,12 @@
-// lib/viewmodels/miarmario_viewmodel.dart
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../env.dart';
+import '../models/prenda.dart';
 
 class MiArmarioViewModel extends ChangeNotifier {
-  List<Map<String, dynamic>> prendas = [];
+  List<Prenda> _prendas = [];
   bool isLoading = false;
 
   String? colorSeleccionado;
@@ -19,17 +19,15 @@ class MiArmarioViewModel extends ChangeNotifier {
   List<String> estaciones = [];
   List<String> categorias = [];
 
-  List<Map<String, dynamic>> get prendasFiltradas {
-    return prendas.where((p) {
-      final colorOk =
-          colorSeleccionado == null || p['color'] == colorSeleccionado;
-      final tipoOk = tipoSeleccionado == null || p['tipo'] == tipoSeleccionado;
+  List<Prenda> get prendasFiltradas {
+    return _prendas.where((p) {
+      final colorOk = colorSeleccionado == null || p.color == colorSeleccionado;
+      final tipoOk = tipoSeleccionado == null || p.tipo == tipoSeleccionado;
       final estacionOk =
-          estacionSeleccionada == null || p['estacion'] == estacionSeleccionada;
+          estacionSeleccionada == null || p.estacion == estacionSeleccionada;
       final categoriaOk =
           categoriaSeleccionada == null ||
-          (p['categorias'] as List?)?.contains(categoriaSeleccionada) == true;
-
+          p.categorias.contains(categoriaSeleccionada);
       return colorOk && tipoOk && estacionOk && categoriaOk;
     }).toList();
   }
@@ -42,29 +40,29 @@ class MiArmarioViewModel extends ChangeNotifier {
     final token = prefs.getString('jwt_token');
 
     final res = await http.get(
-      Uri.parse('$baseURL/prendas/api/mis-prendas'),
+      Uri.parse('$baseURL/prendas/mis-prendas'),
       headers: {'Authorization': 'Bearer $token'},
     );
 
     if (res.statusCode == 200) {
-      prendas = List<Map<String, dynamic>>.from(jsonDecode(res.body));
-      colores = prendas.map((p) => p['color'].toString()).toSet().toList();
-      tipos = prendas.map((p) => p['tipo']?.toString() ?? '').toSet().toList();
-      estaciones =
-          prendas.map((p) => p['estacion']?.toString() ?? '').toSet().toList();
+      final List<dynamic> data = jsonDecode(res.body);
+      _prendas = data.map((item) => Prenda.fromJson(item)).toList();
 
-      // Unir todas las listas de categorías
-      final todasLasCategorias =
-          prendas
-              .map((p) => p['categorias'] as List<dynamic>? ?? [])
-              .expand((e) => e)
+      colores = _prendas.map((p) => p.color).toSet().toList();
+      tipos = _prendas.map((p) => p.tipo).toSet().toList();
+      estaciones =
+          _prendas
+              .map((p) => p.estacion ?? '')
+              .where((e) => e.isNotEmpty)
               .toSet()
-              .map((e) => e.toString())
               .toList();
+
+      final todasLasCategorias =
+          _prendas.expand((p) => p.categorias).toSet().toList();
 
       categorias = todasLasCategorias;
     } else {
-      prendas = [];
+      _prendas = [];
     }
 
     isLoading = false;

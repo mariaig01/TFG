@@ -79,4 +79,32 @@ class AuthService {
       return {'ok': false, 'error': error['error'] ?? 'Error desconocido'};
     }
   }
+
+  // OBTENER ID DE USUARIO DESDE EL TOKEN
+  static Future<int?> getUserIdFromToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('jwt_token');
+    if (token == null) return null;
+
+    final parts = token.split('.');
+    if (parts.length != 3) return null;
+
+    final payload = utf8.decode(
+      base64Url.decode(base64Url.normalize(parts[1])),
+    );
+    final data = jsonDecode(payload);
+    return int.tryParse(data['sub'].toString());
+  }
+
+  static Future<String?> getUsernameFromToken(String? token) async {
+    if (token == null) return null;
+    final parts = token.split('.');
+    if (parts.length != 3) return null;
+
+    final payload = utf8.decode(
+      base64Url.decode(base64Url.normalize(parts[1])),
+    );
+    final data = jsonDecode(payload);
+    return data['username'];
+  }
 }

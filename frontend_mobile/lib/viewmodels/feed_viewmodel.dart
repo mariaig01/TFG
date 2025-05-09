@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../env.dart';
 import '../models/post.dart';
+import '../services/http_auth_service.dart';
 
 class FeedViewModel extends ChangeNotifier {
   List<PostModel> publicaciones = [];
@@ -26,12 +26,9 @@ class FeedViewModel extends ChangeNotifier {
         return;
       }
 
-      final url = Uri.parse('$baseURL/posts/api/feed');
+      final url = Uri.parse('$baseURL/posts/feed');
 
-      final response = await http.get(
-        url,
-        headers: {'Authorization': 'Bearer $token'},
-      );
+      final response = await httpGetConAuth(url);
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);

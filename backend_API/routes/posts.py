@@ -1,6 +1,6 @@
 import os
 import uuid
-from flask import Blueprint, request, jsonify, send_from_directory, current_app
+from flask import Blueprint, request, jsonify, send_from_directory, current_app, url_for
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.utils import secure_filename
 from extensions import socketio
@@ -10,10 +10,11 @@ from sqlalchemy import select, union_all
 from datetime import datetime
 
 
+
 posts_bp = Blueprint('posts', __name__, url_prefix='/posts')
 
 # Ruta: Crear publicación desde Flutter (JWT)
-@posts_bp.route('/api/create-mobile', methods=['POST'])
+@posts_bp.route('/create-mobile', methods=['POST'])
 @jwt_required()
 def crear_post_mobile():
     usuario_id = int(get_jwt_identity())
@@ -88,7 +89,7 @@ def crear_post_mobile():
 
 
 
-@posts_bp.route('/api/feed', methods=['GET'])
+@posts_bp.route('/feed', methods=['GET'])
 @jwt_required()
 def feed_general():
     user_id = int(get_jwt_identity())
@@ -162,6 +163,7 @@ def feed_general():
             'id': p.id,
             'id_usuario': autor_id,
             'contenido': p.contenido,
+            'visibilidad': p.visibilidad,
             'imagen_url': f"{current_app.config['BASE_URL']}{p.imagen_url}" if p.imagen_url else None,
             'fecha': p.fecha_publicacion.isoformat(),
             'usuario': p.usuario.username,
@@ -188,20 +190,38 @@ def serve_uploaded_image(filename):
     return send_from_directory(uploads_dir, filename)
 
 
-@posts_bp.route('/api/<int:post_id>/comments', methods=['GET'])
+@posts_bp.route('/<int:post_id>/comments', methods=['GET'])
 @jwt_required()
 def obtener_comentarios(post_id):
     comentarios = Comentario.query.filter_by(id_publicacion=post_id).order_by(Comentario.fecha_comentario.desc()).all()
-    return jsonify([{
-        'id': c.id,
-        'post_id': c.id_publicacion,
-        'autor': c.usuario.username,
-        'contenido': c.texto,
-        'fecha': c.fecha_comentario.isoformat()
-    } for c in comentarios]), 200
+
+    comentarios_json = []
+    for c in comentarios:
+        usuario = User.query.get(c.id_usuario)
+
+        username = usuario.username if usuario else "Desconocido"
+
+        # Extraer nombre de archivo de foto
+        if usuario and usuario.foto_perfil:
+            filename = usuario.foto_perfil.replace("/usuarios/profile-images/", "")
+            foto_url = url_for("users.serve_profile_image", filename=filename, _external=True)
+        else:
+            foto_url = url_for("users.serve_profile_image", filename="default.png", _external=True)
+
+        comentarios_json.append({
+            'id': c.id,
+            'post_id': c.id_publicacion,
+            'autor': username,
+            'contenido': c.texto,
+            'fecha': c.fecha_comentario.isoformat(),
+            'foto_autor': foto_url
+        })
+
+    return jsonify(comentarios_json), 200
 
 
-@posts_bp.route('/api/<int:post_id>/comments', methods=['POST'])
+
+@posts_bp.route('/<int:post_id>/comments', methods=['POST'])
 @jwt_required()
 def crear_comentario(post_id):
     user_id = int(get_jwt_identity())
@@ -241,7 +261,7 @@ def crear_comentario(post_id):
     return jsonify({'message': 'Comentario creado exitosamente'}), 201
 
 
-@posts_bp.route('/api/<int:post_id>/like', methods=['POST'])
+@posts_bp.route('/<int:post_id>/like', methods=['POST'])
 @jwt_required()
 def toggle_like(post_id):
     user_id = int(get_jwt_identity())
@@ -303,25 +323,7 @@ def toggle_like(post_id):
 
 
 
-@posts_bp.route('/api/<int:post_id>/guardar', methods=['POST'])
-@jwt_required()
-def guardar_publicacion(post_id):
-    user_id = int(get_jwt_identity())
-
-    # Verificar si ya está guardado
-    from models import Favorito
-    existente = Favorito.query.filter_by(id_usuario=user_id, id_publicacion=post_id).first()
-    if existente:
-        return jsonify({'message': 'Ya está guardado'}), 200
-
-    nuevo = Favorito(id_usuario=user_id, id_publicacion=post_id)
-    db.session.add(nuevo)
-    db.session.commit()
-
-    return jsonify({'message': 'Guardado correctamente'}), 201
-
-
-@posts_bp.route('/api/<int:post_id>/guardar-toggle', methods=['POST'])
+@posts_bp.route('/<int:post_id>/guardar-toggle', methods=['POST'])
 @jwt_required()
 def toggle_guardado_publicacion(post_id):
     user_id = int(get_jwt_identity())
@@ -339,7 +341,7 @@ def toggle_guardado_publicacion(post_id):
         return jsonify({'message': 'Guardado', 'guardado': True}), 201
 
 
-@posts_bp.route('/api/<int:post_id>/eliminar', methods=['DELETE'])
+@posts_bp.route('/<int:post_id>/eliminar', methods=['DELETE'])
 @jwt_required()
 def eliminar_publicacion(post_id):
     user_id = int(get_jwt_identity())
@@ -357,16 +359,24 @@ def eliminar_publicacion(post_id):
             if os.path.exists(ruta_imagen):
                 os.remove(ruta_imagen)
         except Exception as e:
-            print(f"⚠️ Error al eliminar imagen: {e}")
+            print(f" Error al eliminar imagen: {e}")
 
     db.session.delete(publicacion)
     db.session.commit()
+
+    if logs_collection is not None:
+        logs_collection.insert_one({
+            "evento": "publicacion_eliminada",
+            "usuario_id": user_id,
+            "post_id": post_id,
+            "timestamp": datetime.utcnow()
+        })
 
     return jsonify({'message': 'Publicación eliminada correctamente'}), 200
 
 
 
-@posts_bp.route('/api/<int:post_id>/editar', methods=['PUT'])
+@posts_bp.route('/<int:post_id>/editar', methods=['PUT'])
 @jwt_required()
 def editar_publicacion(post_id):
     user_id = int(get_jwt_identity())
@@ -387,8 +397,18 @@ def editar_publicacion(post_id):
 
     publicacion.contenido = nuevo_contenido
     publicacion.visibilidad = nueva_visibilidad
-    publicacion.fecha_publicacion = datetime.utcnow()  # opcional
 
     db.session.commit()
+
+    if logs_collection is not None:
+        logs_collection.insert_one({
+            "evento": "publicacion_editada",
+            "usuario_id": user_id,
+            "post_id": post_id,
+            "nuevo_contenido": nuevo_contenido,
+            "nueva_visibilidad": nueva_visibilidad,
+            "timestamp": datetime.utcnow()
+        })
+
 
     return jsonify({'message': 'Publicación actualizada con éxito'}), 200

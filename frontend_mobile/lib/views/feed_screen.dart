@@ -178,8 +178,7 @@ class FeedContent extends StatelessWidget {
                           final result = await Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder:
-                                  (_) => PostDetailScreen(post: post.toMap()),
+                              builder: (_) => PostDetailScreen(post: post),
                             ),
                           );
 

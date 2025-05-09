@@ -244,7 +244,7 @@ class _GroupMessagesScreenState extends State<GroupMessagesScreen> {
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
                                           children: [
-                                            if (msg.publicacion!['imagen_url'] !=
+                                            if (msg.publicacion?.imagenUrl !=
                                                 null)
                                               ClipRRect(
                                                 borderRadius:
@@ -252,7 +252,8 @@ class _GroupMessagesScreenState extends State<GroupMessagesScreen> {
                                                       top: Radius.circular(12),
                                                     ),
                                                 child: Image.network(
-                                                  msg.publicacion!['imagen_url'],
+                                                  msg.publicacion?.imagenUrl ??
+                                                      '',
                                                   fit: BoxFit.contain,
                                                   width:
                                                       MediaQuery.of(
@@ -266,7 +267,7 @@ class _GroupMessagesScreenState extends State<GroupMessagesScreen> {
                                                 8.0,
                                               ),
                                               child: Text(
-                                                msg.publicacion!['contenido'],
+                                                msg.publicacion!.contenido,
                                                 style: const TextStyle(
                                                   fontSize: 14,
                                                 ),
@@ -278,7 +279,7 @@ class _GroupMessagesScreenState extends State<GroupMessagesScreen> {
                                                     horizontal: 8.0,
                                                   ),
                                               child: Text(
-                                                "Publicado por ${msg.publicacion!['usuario']}",
+                                                "Publicado por ${msg.publicacion!.usuario}",
                                                 style: const TextStyle(
                                                   fontSize: 12,
                                                   color: Colors.grey,
@@ -330,7 +331,7 @@ class _GroupMessagesScreenState extends State<GroupMessagesScreen> {
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.send),
+                      icon: const Icon(Icons.send, color: Color(0xFFFFB5B2)),
                       onPressed: () async {
                         final texto = _messageController.text.trim();
                         if (texto.isNotEmpty) {

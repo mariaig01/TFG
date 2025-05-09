@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/direct_messages_viewmodel.dart';
+import '../models/user.dart';
 
 class DirectMessagesScreen extends StatefulWidget {
-  final Map<String, dynamic> usuario;
+  final UserModel usuario;
   const DirectMessagesScreen({super.key, required this.usuario});
 
   @override
@@ -37,7 +38,7 @@ class _DirectMessagesScreenState extends State<DirectMessagesScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final vm = Provider.of<DirectMessagesViewModel>(context, listen: false);
-      await vm.obtenerMensajes(widget.usuario['id']);
+      await vm.obtenerMensajes(widget.usuario.id);
       _scrollToBottom(animated: false);
 
       vm.initSocket();
@@ -74,19 +75,19 @@ class _DirectMessagesScreenState extends State<DirectMessagesScreen> {
       appBar: AppBar(
         title: Row(
           children: [
-            if (widget.usuario['foto_perfil'] != null)
+            if (widget.usuario.fotoPerfil != null)
               CircleAvatar(
                 radius: 20, // tamaño del avatar
-                backgroundImage: NetworkImage(widget.usuario['foto_perfil']),
+                backgroundImage: NetworkImage(widget.usuario.fotoPerfil!),
                 backgroundColor:
                     Colors.grey[300], // color de fondo en caso de carga lenta
               ),
-            if (widget.usuario['foto_perfil'] == null)
+            if (widget.usuario.fotoPerfil == null)
               const CircleAvatar(radius: 20, child: Icon(Icons.person)),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                widget.usuario['username'] ?? 'Usuario',
+                widget.usuario.username,
                 overflow:
                     TextOverflow.ellipsis, // evita que el texto se corte mal
                 style: const TextStyle(
@@ -113,7 +114,8 @@ class _DirectMessagesScreenState extends State<DirectMessagesScreen> {
                         final esMio = mensaje.idEmisor == vm.idUsuarioActual;
 
                         if (mensaje.publicacion != null) {
-                          final post = mensaje.publicacion!;
+                          final post = mensaje.publicacion;
+
                           return Align(
                             alignment:
                                 esMio
@@ -135,23 +137,52 @@ class _DirectMessagesScreenState extends State<DirectMessagesScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  if (post['imagen_url'] != null)
-                                    ClipRRect(
-                                      borderRadius: const BorderRadius.vertical(
-                                        top: Radius.circular(12),
-                                      ),
-                                      child: Image.network(
-                                        post['imagen_url'],
-                                        fit: BoxFit.contain,
-                                        width:
-                                            MediaQuery.of(context).size.width *
-                                            0.8,
-                                      ),
+                                  ClipRRect(
+                                    borderRadius: const BorderRadius.vertical(
+                                      top: Radius.circular(12),
                                     ),
+                                    child:
+                                        post?.imagenUrl != null &&
+                                                post!.imagenUrl!.isNotEmpty
+                                            ? Image.network(
+                                              post.imagenUrl!,
+                                              fit: BoxFit.contain,
+                                              width:
+                                                  MediaQuery.of(
+                                                    context,
+                                                  ).size.width *
+                                                  0.8,
+                                              errorBuilder:
+                                                  (_, __, ___) => Container(
+                                                    width:
+                                                        MediaQuery.of(
+                                                          context,
+                                                        ).size.width *
+                                                        0.8,
+                                                    height: 200,
+                                                    color: Colors.grey.shade300,
+                                                    child: const Icon(
+                                                      Icons.broken_image,
+                                                    ),
+                                                  ),
+                                            )
+                                            : Container(
+                                              width:
+                                                  MediaQuery.of(
+                                                    context,
+                                                  ).size.width *
+                                                  0.8,
+                                              height: 200,
+                                              color: Colors.grey.shade300,
+                                              child: const Icon(
+                                                Icons.broken_image,
+                                              ),
+                                            ),
+                                  ),
                                   Padding(
                                     padding: const EdgeInsets.all(8.0),
                                     child: Text(
-                                      post['contenido'],
+                                      post?.contenido ?? '',
                                       style: const TextStyle(fontSize: 14),
                                     ),
                                   ),
@@ -160,14 +191,15 @@ class _DirectMessagesScreenState extends State<DirectMessagesScreen> {
                                       horizontal: 8.0,
                                     ),
                                     child: Text(
-                                      "Publicado por ${post['usuario']}",
+                                      "Publicado por ${post?.usuario ?? 'Desconocido'}",
                                       style: const TextStyle(
                                         fontSize: 12,
                                         color: Colors.grey,
                                       ),
                                     ),
                                   ),
-                                  if (mensaje.mensaje.trim().isNotEmpty)
+                                  if (mensaje.mensaje?.trim().isNotEmpty ??
+                                      false)
                                     Padding(
                                       padding: const EdgeInsets.only(
                                         top: 8.0,
@@ -176,7 +208,7 @@ class _DirectMessagesScreenState extends State<DirectMessagesScreen> {
                                         bottom: 4.0,
                                       ),
                                       child: Text(
-                                        mensaje.mensaje,
+                                        mensaje.mensaje ?? '',
                                         style: const TextStyle(
                                           fontSize: 13,
                                           fontStyle: FontStyle.italic,
@@ -207,7 +239,7 @@ class _DirectMessagesScreenState extends State<DirectMessagesScreen> {
                                       : Colors.grey[200],
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: Text(mensaje.mensaje),
+                            child: Text(mensaje.mensaje ?? ''),
                           ),
                         );
                       },
@@ -227,12 +259,12 @@ class _DirectMessagesScreenState extends State<DirectMessagesScreen> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.send),
+                  icon: const Icon(Icons.send, color: Color(0xFFFFB5B2)),
                   onPressed: () async {
                     final texto = _controller.text.trim();
                     if (texto.isNotEmpty) {
                       await vmMensajes.enviarMensaje(
-                        receptorId: widget.usuario['id'],
+                        receptorId: widget.usuario.id,
                         mensaje: texto,
                       );
 

@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from models import db, Mensaje, User, MensajeGrupo, GrupoUsuario, Grupo
+from models import db, MensajeIndividual, User, MensajeGrupo, GrupoUsuario, Grupo
 from extensions import socketio
 from datetime import datetime
 from extensions import logs_collection
@@ -19,7 +19,7 @@ def enviar_mensaje_directo():
     if not id_receptor:
         return jsonify({'error': 'Receptor no especificado'}), 400
 
-    nuevo_mensaje = Mensaje(
+    nuevo_mensaje = MensajeIndividual(
         id_emisor=id_emisor,
         id_receptor=id_receptor,
         mensaje=mensaje,
@@ -51,10 +51,10 @@ def enviar_mensaje_directo():
 def obtener_mensajes_directos(otro_usuario_id):
     usuario_actual_id = get_jwt_identity()
 
-    mensajes = Mensaje.query.filter(
-        ((Mensaje.id_emisor == usuario_actual_id) & (Mensaje.id_receptor == otro_usuario_id)) |
-        ((Mensaje.id_emisor == otro_usuario_id) & (Mensaje.id_receptor == usuario_actual_id))
-    ).order_by(Mensaje.fecha_envio.asc()).all()
+    mensajes = MensajeIndividual.query.filter(
+        ((MensajeIndividual.id_emisor == usuario_actual_id) & (MensajeIndividual.id_receptor == otro_usuario_id)) |
+        ((MensajeIndividual.id_emisor == otro_usuario_id) & (MensajeIndividual.id_receptor == usuario_actual_id))
+    ).order_by(MensajeIndividual.fecha_envio.asc()).all()
 
     return jsonify([m.to_dict() for m in mensajes]), 200
 
@@ -121,8 +121,8 @@ def obtener_mensajes_grupo(id_grupo):
 def obtener_usuarios_con_actividad_de_mensajes():
     user_id = int(get_jwt_identity())
 
-    mensajes = Mensaje.query.filter(
-        (Mensaje.id_emisor == user_id) | (Mensaje.id_receptor == user_id)
+    mensajes = MensajeIndividual.query.filter(
+        (MensajeIndividual.id_emisor == user_id) | (MensajeIndividual.id_receptor == user_id)
     ).all()
 
     ids_relacionados = set()

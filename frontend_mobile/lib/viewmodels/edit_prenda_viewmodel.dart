@@ -1,8 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import '../env.dart';
+import '../services/http_auth_service.dart';
 
 class EditPrendaViewModel extends ChangeNotifier {
   bool isLoading = false;
@@ -27,10 +26,7 @@ class EditPrendaViewModel extends ChangeNotifier {
     isLoading = true;
     notifyListeners();
 
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('jwt_token');
-
-    final url = Uri.parse('$baseURL/prendas/api/$id/editar');
+    final url = Uri.parse('$baseURL/prendas/$id/editar');
     final body = {
       "nombre": nombre,
       "descripcion": descripcion,
@@ -45,14 +41,7 @@ class EditPrendaViewModel extends ChangeNotifier {
     };
 
     try {
-      final res = await http.put(
-        url,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(body),
-      );
+      final res = await httpPutConAuth(url, body);
 
       if (res.statusCode == 200) {
         successMessage = "Prenda actualizada con éxito";
@@ -76,16 +65,10 @@ class EditPrendaViewModel extends ChangeNotifier {
     loadingTipos = true;
     notifyListeners();
 
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('jwt_token');
-    final url = Uri.parse('$baseURL/prendas/api/tipos');
+    final url = Uri.parse('$baseURL/prendas/tipos');
 
     try {
-      final response = await http.get(
-        url,
-        headers: {'Authorization': 'Bearer $token'},
-      );
-
+      final response = await httpGetConAuth(url);
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
         tiposPrenda = List<String>.from(data);
@@ -103,17 +86,10 @@ class EditPrendaViewModel extends ChangeNotifier {
   Future<bool> eliminarPrenda(int id) async {
     isLoading = true;
     notifyListeners();
-
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('jwt_token');
-    final url = Uri.parse('$baseURL/prendas/api/$id/eliminar');
+    final url = Uri.parse('$baseURL/prendas/$id/eliminar');
 
     try {
-      final res = await http.delete(
-        url,
-        headers: {'Authorization': 'Bearer $token'},
-      );
-
+      final res = await httpDeleteConAuth(url);
       if (res.statusCode == 200) {
         successMessage = "Prenda eliminada correctamente";
         errorMessage = null;

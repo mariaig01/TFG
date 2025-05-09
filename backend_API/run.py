@@ -8,11 +8,20 @@ from routes.groups import groups_bp
 from routes.users import users_bp
 from routes.general import general_bp
 from routes.prendas import prendas_bp
+from flask_cors import CORS
 
 
 def create_app():
     app = Flask(__name__, static_folder='app/static')
     app.config.from_object(Config)
+    # CORS(auth_bp, origins=app.config['CORS_ORIGINS'])
+    # CORS(posts_bp, origins=app.config['CORS_ORIGINS'])
+    # CORS(mensajes_bp, origins=app.config['CORS_ORIGINS'])
+    # CORS(groups_bp, origins=app.config['CORS_ORIGINS'])
+    # CORS(users_bp, origins=app.config['CORS_ORIGINS'])
+    # CORS(general_bp, origins=app.config['CORS_ORIGINS'])
+    # CORS(prendas_bp, origins=app.config['CORS_ORIGINS'])
+    CORS(app, supports_credentials=True)
 
     # Inicializa extensiones
     db.init_app(app)

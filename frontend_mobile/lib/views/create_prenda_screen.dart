@@ -10,6 +10,8 @@ import '../viewmodels/create_prenda_viewmodel.dart';
 import '../widgets/bottom_nav_bar.dart';
 import 'package:flutter/services.dart';
 import 'create_post_screen.dart';
+import '../models/prenda.dart';
+import '../services/auth_service.dart';
 
 class CreatePrendaScreen extends StatefulWidget {
   const CreatePrendaScreen({super.key});
@@ -525,20 +527,52 @@ class _CreatePrendaScreenState extends State<CreatePrendaScreen> {
                 height: 50,
                 child: ElevatedButton(
                   onPressed: () async {
-                    await vm.createPrenda(
+                    // Validación básica de campos
+                    if (nombreController.text.trim().isEmpty ||
+                        descripcionController.text.trim().isEmpty ||
+                        precioController.text.trim().isEmpty ||
+                        tallaController.text.trim().isEmpty ||
+                        colorController.text.trim().isEmpty ||
+                        imagenSeleccionada == null ||
+                        categorias.isEmpty ||
+                        estacionSeleccionada == null ||
+                        vm.tipoSeleccionado == null ||
+                        vm.emocionSeleccionada == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Por favor, rellena todos los campos antes de guardar',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+
+                    final idUsuario = await AuthService.getUserIdFromToken();
+
+                    final nuevaPrenda = Prenda(
+                      id: 0,
                       nombre: nombreController.text.trim(),
                       descripcion: descripcionController.text.trim(),
                       precio: double.tryParse(precioController.text) ?? 0.0,
                       talla: tallaController.text.trim(),
                       color: colorController.text.trim(),
+                      imagenUrl: imagenSeleccionada!.path,
                       solicitable: solicitable,
-                      imagen: imagenSeleccionada,
-                      eliminarFondo: fondoBlanco,
                       categorias: categorias,
-                      estacion: estacionSeleccionada ?? 'Cualquiera',
+                      estacion: estacionSeleccionada!,
+                      tipo: vm.tipoSeleccionado!,
+                      emocion: vm.emocionSeleccionada!,
+                      usuarioId: idUsuario ?? 0,
                     );
 
-                    if (vm.errorMessage == null) {
+                    final prendaCreada = await vm.createPrenda(
+                      prenda: nuevaPrenda,
+                      imagen: imagenSeleccionada!,
+                      eliminarFondo: fondoBlanco,
+                    );
+
+                    if (prendaCreada != null) {
                       Navigator.pushReplacement(
                         context,
                         MaterialPageRoute(
@@ -546,11 +580,16 @@ class _CreatePrendaScreenState extends State<CreatePrendaScreen> {
                         ),
                       );
                     } else {
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(SnackBar(content: Text(vm.errorMessage!)));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            vm.errorMessage ?? 'Error al crear la prenda',
+                          ),
+                        ),
+                      );
                     }
                   },
+
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFFFB5B2),
                     shape: RoundedRectangleBorder(

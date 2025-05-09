@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/perfil_usuario_viewmodel.dart';
 import '../viewmodels/search_viewmodel.dart';
-import '../env.dart';
 import 'post_detail_screen.dart';
 import 'prenda_detail_screen.dart';
 import 'direct_messages_screen.dart';
 import '../viewmodels/direct_messages_viewmodel.dart';
+import '../models/prenda.dart';
+import '../models/post.dart';
+import '../models/user.dart';
+import '../env.dart';
 
 class PerfilUsuarioScreen extends StatefulWidget {
   final int userId;
@@ -47,12 +50,12 @@ class _PerfilUsuarioScreenState extends State<PerfilUsuarioScreen> {
                   CircleAvatar(
                     radius: 45,
                     backgroundImage:
-                        user['foto_perfil'] != null
-                            ? NetworkImage('$baseURL${user['foto_perfil']}')
+                        user.fotoPerfil != null
+                            ? NetworkImage('$baseURL${user.fotoPerfil}')
                             : null,
                     backgroundColor: const Color(0xFFFFB5B2),
                     child:
-                        user['foto_perfil'] == null
+                        user.fotoPerfil == null
                             ? const Icon(
                               Icons.person,
                               color: Colors.white,
@@ -62,14 +65,11 @@ class _PerfilUsuarioScreenState extends State<PerfilUsuarioScreen> {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    user['username'],
+                    user.username,
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
-                  if (user['bio'] != null)
-                    Text(
-                      user['bio'],
-                      style: const TextStyle(color: Colors.grey),
-                    ),
+                  if (user.bio != null)
+                    Text(user.bio!, style: const TextStyle(color: Colors.grey)),
                   const SizedBox(height: 12),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -99,14 +99,12 @@ class _PerfilUsuarioScreenState extends State<PerfilUsuarioScreen> {
                               (_) => ChangeNotifierProvider(
                                 create: (_) => DirectMessagesViewModel(),
                                 child: DirectMessagesScreen(
-                                  usuario: {
-                                    'id': user['id'],
-                                    'username': user['username'],
-                                    'foto_perfil':
-                                        user['foto_perfil'] != null
-                                            ? '$baseURL${user['foto_perfil']}'
-                                            : null,
-                                  },
+                                  usuario: UserModel(
+                                    id: user.id,
+                                    username: user.username,
+                                    nombre: user.nombre,
+                                    fotoPerfil: user.fotoPerfil,
+                                  ),
                                 ),
                               ),
                         ),
@@ -159,13 +157,13 @@ class _PerfilUsuarioScreenState extends State<PerfilUsuarioScreen> {
 
   Widget _buildRelacionButton({
     required String tipo,
-    required Map<String, dynamic> usuario,
+    required UserModel? usuario,
     required dynamic vm,
     required VoidCallback onChanged,
   }) {
-    final relacion = usuario['relacion'];
-    final estado = usuario['estado'];
-    final estadoSeguidor = usuario['estado_seguidor'];
+    final relacion = usuario?.tipo ?? '';
+    final estado = usuario?.estado ?? '';
+    final estadoSeguidor = usuario?.estadoSeguidor ?? '';
 
     final esRelacion =
         relacion == tipo ||
@@ -194,8 +192,8 @@ class _PerfilUsuarioScreenState extends State<PerfilUsuarioScreen> {
         final yaTiene = esRelacion;
         final ok =
             yaTiene
-                ? await vm.eliminarRelacion(usuario['id'], tipo: tipo)
-                : await vm.enviarSolicitud(usuario['id'], tipo: tipo);
+                ? await vm.eliminarRelacion(usuario!.id, tipo: tipo)
+                : await vm.enviarSolicitud(usuario!.id, tipo: tipo);
 
         if (ok) {
           await context.read<PerfilUsuarioViewModel>().cargarTodo(
@@ -210,7 +208,7 @@ class _PerfilUsuarioScreenState extends State<PerfilUsuarioScreen> {
               ok
                   ? yaTiene
                       ? 'Has cancelado la solicitud de $tipo'
-                      : 'Solicitud de $tipo enviada a ${usuario['username']}'
+                      : 'Solicitud de $tipo enviada a ${usuario.username}'
                   : 'Error al procesar la acción',
             ),
           ),
@@ -229,8 +227,8 @@ class _TabContenido extends StatelessWidget {
     final vm = Provider.of<PerfilUsuarioViewModel>(context);
     final user = vm.user;
 
-    final relacion = user?['relacion'];
-    final estado = user?['estado'];
+    final relacion = user?.tipo ?? '';
+    final estado = user?.estado ?? '';
 
     final accesoPorRelacion =
         (relacion == 'amigo' && estado == 'aceptada') ||
@@ -253,18 +251,40 @@ class _TabContenido extends StatelessWidget {
 
     return TabBarView(
       children: [
-        _GridItems(items: vm.publicaciones, tipo: 'post'),
-        _GridItems(items: vm.prendas, tipo: 'prenda'),
+        _GridItems<PostModel>(
+          items: vm.publicaciones.toList(),
+          onTap: (context, post) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => PostDetailScreen(post: post)),
+            );
+          },
+        ),
+        _GridItems<Prenda>(
+          items: vm.prendas.toList(),
+          onTap: (context, prenda) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder:
+                    (_) => PrendaDetailScreen(
+                      prenda: prenda,
+                      relacionConUsuario: vm.user,
+                    ),
+              ),
+            );
+          },
+        ),
       ],
     );
   }
 }
 
-class _GridItems extends StatelessWidget {
-  final List<Map<String, dynamic>> items;
-  final String tipo;
+class _GridItems<T> extends StatelessWidget {
+  final List<T> items;
+  final void Function(BuildContext, T) onTap;
 
-  const _GridItems({required this.items, required this.tipo});
+  const _GridItems({required this.items, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -280,32 +300,27 @@ class _GridItems extends StatelessWidget {
         crossAxisSpacing: 8,
         children:
             items.map((item) {
+              final String? imageUrl;
+              if (item is PostModel) {
+                imageUrl = item.imagenUrl;
+              } else if (item is Prenda) {
+                imageUrl = item.imagenUrl;
+              } else {
+                imageUrl = null;
+              }
+
               return GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder:
-                          (_) =>
-                              tipo == 'post'
-                                  ? PostDetailScreen(post: item)
-                                  : PrendaDetailScreen(
-                                    prenda: item,
-                                    relacionConUsuario:
-                                        Provider.of<PerfilUsuarioViewModel>(
-                                          context,
-                                          listen: false,
-                                        ).user,
-                                  ),
-                    ),
-                  );
-                },
-                child: Image.network(
-                  item['imagen_url'],
-                  fit: BoxFit.cover,
-                  errorBuilder:
-                      (_, __, ___) => Container(color: Colors.grey.shade300),
-                ),
+                onTap: () => onTap(context, item),
+                child:
+                    imageUrl != null
+                        ? Image.network(
+                          imageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder:
+                              (_, __, ___) =>
+                                  Container(color: Colors.grey.shade300),
+                        )
+                        : Container(color: Colors.grey.shade300),
               );
             }).toList(),
       ),

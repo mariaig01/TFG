@@ -2,7 +2,7 @@ from flask_login import UserMixin
 from sqlalchemy.sql import func
 from extensions import db
 from datetime import datetime
-
+from flask import current_app
 
 class User(db.Model, UserMixin):
     __tablename__ = 'usuarios'  # nombre exacto de la tabla en PostgreSQL
@@ -64,6 +64,19 @@ class User(db.Model, UserMixin):
         from werkzeug.security import check_password_hash
         return check_password_hash(self.contraseña, password)
 
+class Seguimiento(db.Model):
+    __tablename__ = 'seguimientos'
+
+    id = db.Column(db.Integer, primary_key=True)
+    id_seguidor = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
+    id_seguido = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
+    tipo = db.Column(db.String(20))  # 'seguidor' o 'amigo'
+    estado = db.Column(db.String(20), default='pendiente')
+    fecha_inicio = db.Column(db.DateTime, default=datetime.utcnow)
+
+    seguidor = db.relationship('User', foreign_keys=[id_seguidor], backref='seguidos')
+    seguido = db.relationship('User', foreign_keys=[id_seguido], backref='seguidores')
+
 class Post(db.Model):
     __tablename__ = 'publicaciones'
 
@@ -83,9 +96,17 @@ class Post(db.Model):
         return {
             "id": self.id,
             "contenido": self.contenido,
-            "imagen_url": f"http://192.168.1.43:5000{self.imagen_url}" if self.imagen_url else None,
-            "usuario": self.usuario.username
+            "imagen_url": f"{current_app.config['BASE_URL']}{self.imagen_url}" if self.imagen_url else "",
+            "fecha": self.fecha_publicacion.isoformat() if self.fecha_publicacion else "",
+            "usuario": self.usuario.username,
+            "foto_perfil": f"{current_app.config['BASE_URL']}{self.usuario.foto_perfil}" if self.usuario.foto_perfil else None,
+            "ha_dado_like": False,
+            "likes_count": len(self.likes),
+            "tipo_relacion": "",
+            "guardado": False,
+            "id_usuario": self.id_usuario
         }
+
 
 class Grupo(db.Model):
     __tablename__ = 'grupos'
@@ -133,18 +154,7 @@ class GrupoUsuario(db.Model):
         }
 
 
-class Seguimiento(db.Model):
-    __tablename__ = 'seguimientos'
 
-    id = db.Column(db.Integer, primary_key=True)
-    id_seguidor = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
-    id_seguido = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
-    tipo = db.Column(db.String(20))  # 'seguidor' o 'amigo'
-    estado = db.Column(db.String(20), default='pendiente')
-    fecha_inicio = db.Column(db.DateTime, default=datetime.utcnow)
-
-    seguidor = db.relationship('User', foreign_keys=[id_seguidor], backref='seguidos')
-    seguido = db.relationship('User', foreign_keys=[id_seguido], backref='seguidores')
 
 
 class Comentario(db.Model):
@@ -174,8 +184,8 @@ class Like(db.Model):
         db.UniqueConstraint('id_usuario', 'id_publicacion', name='unique_like'),
     )
 
-class Mensaje(db.Model):
-    __tablename__ = 'mensajes'
+class MensajeIndividual(db.Model):
+    __tablename__ = 'mensajes_individuales'
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     id_emisor = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='CASCADE'), nullable=False)
@@ -183,7 +193,6 @@ class Mensaje(db.Model):
     mensaje = db.Column(db.Text, nullable=True)
     id_publicacion = db.Column(db.Integer, db.ForeignKey('publicaciones.id'), nullable=True)
     fecha_envio = db.Column(db.DateTime, default=datetime.utcnow)
-    estado = db.Column(db.String(20), default='pendiente')
 
     # Relaciones opcionales
     emisor = db.relationship('User', foreign_keys=[id_emisor], backref='mensajes_enviados')
@@ -327,7 +336,6 @@ class SolicitudPrenda(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     id_prenda = db.Column(db.Integer, db.ForeignKey('prendas.id', ondelete='CASCADE'))
     id_remitente = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='CASCADE'))
-    id_destinatario = db.Column(db.Integer, db.ForeignKey('usuarios.id', ondelete='CASCADE'))
     estado = db.Column(db.String(20), default='pendiente')
     fecha_solicitud = db.Column(db.DateTime, default=datetime.utcnow)
     fecha_inicio = db.Column(db.DateTime)

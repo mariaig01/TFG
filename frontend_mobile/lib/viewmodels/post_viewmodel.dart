@@ -19,7 +19,7 @@ class PostViewModel extends ChangeNotifier {
 
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('jwt_token');
-    final url = Uri.parse('$baseURL/posts/api/$postId/editar');
+    final url = Uri.parse('$baseURL/posts/$postId/editar');
 
     final res = await http.put(
       url,
@@ -48,7 +48,7 @@ class PostViewModel extends ChangeNotifier {
 
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('jwt_token');
-    final url = Uri.parse('$baseURL/posts/api/$postId/eliminar');
+    final url = Uri.parse('$baseURL/posts/$postId/eliminar');
 
     final res = await http.delete(
       url,

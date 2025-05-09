@@ -8,7 +8,7 @@ import '../viewmodels/post_viewmodel.dart';
 import '../services/likes_notifier.dart';
 
 class PostDetailScreen extends StatefulWidget {
-  final Map<String, dynamic> post;
+  final PostModel post;
 
   const PostDetailScreen({super.key, required this.post});
 
@@ -26,17 +26,18 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     super.initState();
     _decodeToken();
     postModel = PostModel(
-      id: widget.post['id'],
-      contenido: widget.post['contenido'],
-      imagenUrl: widget.post['imagen_url'] ?? '',
-      fecha: widget.post['fecha'] ?? '',
-      usuario: widget.post['usuario'],
-      fotoPerfil: widget.post['foto_perfil'] ?? '',
-      haDadoLike: widget.post['ha_dado_like'] ?? false,
-      likesCount: widget.post['likes_count'] ?? 0,
-      tipoRelacion: widget.post['tipo_relacion'] ?? '',
-      guardado: widget.post['guardado'] ?? false,
-      idUsuario: widget.post['id_usuario'] ?? 0,
+      id: widget.post.id,
+      contenido: widget.post.contenido,
+      visibilidad: widget.post.visibilidad,
+      imagenUrl: widget.post.imagenUrl,
+      fecha: widget.post.fecha,
+      usuario: widget.post.usuario,
+      fotoPerfil: widget.post.fotoPerfil ?? '',
+      haDadoLike: widget.post.haDadoLike,
+      likesCount: widget.post.likesCount,
+      tipoRelacion: widget.post.tipoRelacion,
+      guardado: widget.post.guardado,
+      idUsuario: widget.post.idUsuario,
     );
   }
 
@@ -53,42 +54,51 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         setState(() {
           userId = int.tryParse(data['sub'].toString());
           print('🔐 ID extraído del token: $userId');
+          print(postModel.idUsuario);
         });
       }
     }
   }
 
   Future<void> _editarPost() async {
-    final nuevoContenido = await showDialog<String>(
+    final resultado = await showDialog<List<String>>(
       context: context,
-      builder: (_) => _EditarPostDialog(contenido: postModel.contenido),
+      builder:
+          (_) => _EditarPostDialog(
+            contenido: postModel.contenido,
+            visibilidadActual: postModel.visibilidad,
+          ),
     );
 
-    if (nuevoContenido != null &&
-        nuevoContenido.trim().isNotEmpty &&
-        nuevoContenido != postModel.contenido) {
-      final ok = await Provider.of<PostViewModel>(
-        context,
-        listen: false,
-      ).editarPost(
-        postModel.id,
-        nuevoContenido,
-        'publico',
-      ); // o usa postModel.tipoVisibilidad si lo tienes
+    if (resultado != null && resultado.length == 2) {
+      final nuevoContenido = resultado[0];
+      final nuevaVisibilidad = resultado[1];
 
-      if (ok) {
-        setState(() {
-          postModel = postModel.copyWith(contenido: nuevoContenido);
-        });
-        ScaffoldMessenger.of(
+      if (nuevoContenido.trim().isNotEmpty &&
+          (nuevoContenido != postModel.contenido ||
+              nuevaVisibilidad != postModel.visibilidad)) {
+        final ok = await Provider.of<PostViewModel>(
           context,
-        ).showSnackBar(const SnackBar(content: Text("Contenido actualizado")));
-      } else {
-        final error =
-            Provider.of<PostViewModel>(context, listen: false).errorMessage;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error ?? "Error al actualizar publicación")),
-        );
+          listen: false,
+        ).editarPost(postModel.id, nuevoContenido, nuevaVisibilidad);
+
+        if (ok) {
+          setState(() {
+            postModel = postModel.copyWith(
+              contenido: nuevoContenido,
+              visibilidad: nuevaVisibilidad,
+            );
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Contenido actualizado")),
+          );
+        } else {
+          final error =
+              Provider.of<PostViewModel>(context, listen: false).errorMessage;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(error ?? "Error al actualizar publicación")),
+          );
+        }
       }
     }
   }
@@ -142,7 +152,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     final likesNotifier = Provider.of<LikesNotifier>(context);
     final likedGlobal = likesNotifier.isLiked(postModel.id);
 
-    final updatedPostModel = postModel.copyWith(haDadoLike: likedGlobal);
+    final updatedPostModel = postModel.copyWith(
+      haDadoLike: likedGlobal,
+      likesCount: likesNotifier.getLikesCount(postModel.id),
+    );
 
     if (userId == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -153,6 +166,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         title: const Text("Publicación"),
         backgroundColor: const Color(0xFFFFB5B2),
         actions: [
+          //Ppermite eliminar o editar la publicación solo si el usuario es el propietario
           if (userId != null && userId == postModel.idUsuario)
             PopupMenuButton<String>(
               onSelected: (value) {
@@ -200,7 +214,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
 class _EditarPostDialog extends StatefulWidget {
   final String contenido;
-  const _EditarPostDialog({required this.contenido});
+  final String visibilidadActual;
+  const _EditarPostDialog({
+    required this.contenido,
+    required this.visibilidadActual,
+  });
 
   @override
   State<_EditarPostDialog> createState() => _EditarPostDialogState();
@@ -208,10 +226,19 @@ class _EditarPostDialog extends StatefulWidget {
 
 class _EditarPostDialogState extends State<_EditarPostDialog> {
   late TextEditingController _controller;
+  late String _visibilidadSeleccionada;
+
+  final List<String> _opcionesVisibilidad = [
+    'publico',
+    'privado',
+    'seguidores',
+    'amigos',
+  ];
 
   @override
   void initState() {
     _controller = TextEditingController(text: widget.contenido);
+    _visibilidadSeleccionada = widget.visibilidadActual;
     super.initState();
   }
 
@@ -219,10 +246,39 @@ class _EditarPostDialogState extends State<_EditarPostDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text("Editar publicación"),
-      content: TextField(
-        controller: _controller,
-        maxLines: null,
-        decoration: const InputDecoration(border: OutlineInputBorder()),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _controller,
+            maxLines: null,
+            decoration: const InputDecoration(border: OutlineInputBorder()),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            value: _visibilidadSeleccionada,
+            items:
+                _opcionesVisibilidad
+                    .map(
+                      (op) => DropdownMenuItem(
+                        value: op,
+                        child: Text(op[0].toUpperCase() + op.substring(1)),
+                      ),
+                    )
+                    .toList(),
+            onChanged: (value) {
+              if (value != null) {
+                setState(() {
+                  _visibilidadSeleccionada = value;
+                });
+              }
+            },
+            decoration: const InputDecoration(
+              labelText: 'Visibilidad',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ],
       ),
       actions: [
         TextButton(
@@ -230,7 +286,11 @@ class _EditarPostDialogState extends State<_EditarPostDialog> {
           child: const Text("Cancelar"),
         ),
         TextButton(
-          onPressed: () => Navigator.pop(context, _controller.text.trim()),
+          onPressed:
+              () => Navigator.pop(context, [
+                _controller.text.trim(),
+                _visibilidadSeleccionada,
+              ]),
           child: const Text("Guardar"),
         ),
       ],

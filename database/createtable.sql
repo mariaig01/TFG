@@ -112,8 +112,6 @@ CREATE TABLE prendas (
 CREATE TABLE preferencias (
     id SERIAL PRIMARY KEY,
     id_usuario INT UNIQUE REFERENCES usuarios(id) ON DELETE CASCADE,
-    tallas TEXT[],
-    colores TEXT[],
     otras_preferencias TEXT
 );
 
@@ -138,14 +136,13 @@ CREATE TABLE comentarios (
 );
 
 -- Tabla mensajes
-CREATE TABLE mensajes (
+CREATE TABLE mensajes_individuales (
     id SERIAL PRIMARY KEY,
     id_emisor INT REFERENCES usuarios(id) ON DELETE CASCADE,
     id_receptor INT REFERENCES usuarios(id) ON DELETE CASCADE,
     mensaje TEXT,
     id_publicacion INT REFERENCES publicaciones(id),
-    fecha_envio TIMESTAMP,
-    estado VARCHAR(20)
+    fecha_envio TIMESTAMP
 );
 
 -- Tabla grupos
@@ -172,7 +169,8 @@ CREATE TABLE seguimientos (
     id_seguidor INT REFERENCES usuarios(id) ON DELETE CASCADE,
     id_seguido INT REFERENCES usuarios(id) ON DELETE CASCADE,
     fecha_inicio TIMESTAMP,
-    tipo VARCHAR(20)
+    tipo VARCHAR(20),
+    estado VARCHAR(20) DEFAULT 'pendiente' CHECK (estado IN ('pendiente', 'aceptada', 'rechazada'))
 );
 
 -- Tabla likes
@@ -201,10 +199,17 @@ CREATE TABLE mensajes_grupo (
     fecha_envio TIMESTAMP
 );
 
+CREATE TABLE preferencias_color (
+    id SERIAL PRIMARY KEY,
+    id_preferencia INT REFERENCES preferencias(id) ON DELETE CASCADE,
+    color VARCHAR(30)
+);
+
+
 -- Tabla preferencias_tipo_categoria
 CREATE TABLE preferencias_tipo_categoria (
     id SERIAL PRIMARY KEY,
-    id_usuario INT REFERENCES usuarios(id) ON DELETE CASCADE,
+    id_preferencia INT REFERENCES preferencias(id) ON DELETE CASCADE,
     tipo_prenda tipo_prenda_enum NOT NULL,
     id_categoria INT REFERENCES categorias(id) ON DELETE CASCADE,
     color_preferido VARCHAR(30),
@@ -225,7 +230,6 @@ CREATE TABLE solicitudes_prenda (
     id SERIAL PRIMARY KEY,
     id_prenda INT REFERENCES prendas(id) ON DELETE CASCADE,
     id_remitente INT REFERENCES usuarios(id) ON DELETE CASCADE,
-    id_destinatario INT REFERENCES usuarios(id) ON DELETE CASCADE,
     estado VARCHAR(20) DEFAULT 'pendiente' CHECK (estado IN ('pendiente', 'aceptada', 'rechazada')),
     fecha_solicitud TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     fecha_inicio TIMESTAMP,

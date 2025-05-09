@@ -131,7 +131,7 @@ class _MiArmarioScreenState extends State<MiArmarioScreen> {
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(10),
                                 child: Image.network(
-                                  prenda['imagen_url'],
+                                  prenda.imagenUrl ?? '',
                                   fit: BoxFit.cover,
                                 ),
                               ),

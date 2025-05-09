@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
-
+import '../services/http_auth_service.dart';
 import '../env.dart';
 
 class ForgotPasswordViewModel extends ChangeNotifier {
@@ -15,11 +14,7 @@ class ForgotPasswordViewModel extends ChangeNotifier {
 
     final uri = Uri.parse('$baseURL/auth/forgot-password');
     try {
-      final res = await http.post(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email}),
-      );
+      final res = await httpPostConAuth(uri, {'email': email});
 
       final body = jsonDecode(res.body);
 

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
 import '../env.dart';
+import '../services/http_auth_service.dart';
 
 class FavoritesViewModel with ChangeNotifier {
   Future<bool> toggleGuardarPublicacion(int postId) async {
@@ -9,11 +9,9 @@ class FavoritesViewModel with ChangeNotifier {
     final token = prefs.getString('jwt_token');
     if (token == null) return false;
 
-    final res = await http.post(
-      Uri.parse('$baseURL/posts/api/$postId/guardar-toggle'),
-      headers: {'Authorization': 'Bearer $token'},
-    );
+    final url = Uri.parse('$baseURL/posts/$postId/guardar-toggle');
 
+    final res = await httpPostConAuth(url, {});
     return res.statusCode == 200 || res.statusCode == 201;
   }
 }

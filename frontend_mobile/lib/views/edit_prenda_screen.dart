@@ -3,9 +3,10 @@ import 'package:provider/provider.dart';
 import '../viewmodels/edit_prenda_viewmodel.dart';
 import 'miarmario_screen.dart';
 import 'package:flutter/services.dart';
+import '../models/prenda.dart';
 
 class EditPrendaScreen extends StatefulWidget {
-  final Map<String, dynamic> prenda;
+  final Prenda prenda;
 
   const EditPrendaScreen({super.key, required this.prenda});
 
@@ -49,16 +50,16 @@ class _EditPrendaScreenState extends State<EditPrendaScreen> {
   void initState() {
     super.initState();
     final p = widget.prenda;
-    nombreController = TextEditingController(text: p['nombre']);
-    descripcionController = TextEditingController(text: p['descripcion']);
-    precioController = TextEditingController(text: p['precio'].toString());
-    tallaController = TextEditingController(text: p['talla']);
-    colorController = TextEditingController(text: p['color']);
+    nombreController = TextEditingController(text: p.nombre);
+    descripcionController = TextEditingController(text: p.descripcion);
+    precioController = TextEditingController(text: p.precio.toString());
+    tallaController = TextEditingController(text: p.talla);
+    colorController = TextEditingController(text: p.color);
     categoriaInputController = TextEditingController();
-    solicitable = p['solicitable'] ?? false;
-    categorias = List<String>.from(p['categorias'] ?? []);
-    estacionSeleccionada = p['estacion'] ?? 'Cualquiera';
-    tipoSeleccionado = p['tipo'] ?? 'Otro';
+    solicitable = p.solicitable;
+    categorias = List<String>.from(p.categorias);
+    estacionSeleccionada = p.estacion ?? 'Cualquiera';
+    tipoSeleccionado = p.tipo;
 
     Future.microtask(
       () =>
@@ -89,7 +90,7 @@ class _EditPrendaScreenState extends State<EditPrendaScreen> {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(12),
                       child: Image.network(
-                        widget.prenda['imagen_url'],
+                        widget.prenda.imagenUrl ?? '',
                         fit: BoxFit.contain,
                         height: 300,
                         width: double.infinity,
@@ -103,6 +104,25 @@ class _EditPrendaScreenState extends State<EditPrendaScreen> {
                     const SizedBox(height: 10),
                     _buildTextField(descripcionController, "Descripción"),
                     const SizedBox(height: 10),
+                    vm.loadingTipos
+                        ? const Center(child: CircularProgressIndicator())
+                        : DropdownButtonFormField<String>(
+                          decoration: _inputDecoration('Tipo de prenda'),
+                          value: tipoSeleccionado,
+                          items:
+                              vm.tiposPrenda
+                                  .map(
+                                    (e) => DropdownMenuItem(
+                                      value: e,
+                                      child: Text(e),
+                                    ),
+                                  )
+                                  .toList(),
+                          onChanged:
+                              (value) =>
+                                  setState(() => tipoSeleccionado = value),
+                        ),
+                    const SizedBox(height: 10),
                     _buildTextField(
                       precioController,
                       "Precio",
@@ -110,8 +130,6 @@ class _EditPrendaScreenState extends State<EditPrendaScreen> {
                     ),
                     const SizedBox(height: 10),
                     _buildTextField(tallaController, "Talla"),
-                    const SizedBox(height: 10),
-                    _buildTextField(colorController, "Color"),
                     const SizedBox(height: 10),
                     const Text(
                       'Categorías',
@@ -155,6 +173,26 @@ class _EditPrendaScreenState extends State<EditPrendaScreen> {
                         }
                       },
                     ),
+                    const SizedBox(height: 20),
+                    DropdownButtonFormField<String>(
+                      value: _emocionSeleccionada,
+                      decoration: _inputDecoration('Emoción'),
+                      items:
+                          emociones
+                              .map(
+                                (emocion) => DropdownMenuItem(
+                                  value: emocion,
+                                  child: Text(
+                                    emocion[0].toUpperCase() +
+                                        emocion.substring(1),
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                      onChanged:
+                          (value) =>
+                              setState(() => _emocionSeleccionada = value!),
+                    ),
                     const SizedBox(height: 10),
                     DropdownButtonFormField<String>(
                       decoration: _inputDecoration('Estación'),
@@ -171,46 +209,8 @@ class _EditPrendaScreenState extends State<EditPrendaScreen> {
                               setState(() => estacionSeleccionada = value),
                     ),
                     const SizedBox(height: 10),
-                    vm.loadingTipos
-                        ? const Center(child: CircularProgressIndicator())
-                        : DropdownButtonFormField<String>(
-                          decoration: _inputDecoration('Tipo de prenda'),
-                          value: tipoSeleccionado,
-                          items:
-                              vm.tiposPrenda
-                                  .map(
-                                    (e) => DropdownMenuItem(
-                                      value: e,
-                                      child: Text(e),
-                                    ),
-                                  )
-                                  .toList(),
-                          onChanged:
-                              (value) =>
-                                  setState(() => tipoSeleccionado = value),
-                        ),
-                    const SizedBox(height: 20),
-                    DropdownButtonFormField<String>(
-                      value: _emocionSeleccionada,
-                      decoration: InputDecoration(
-                        labelText: 'Emoción',
-                        border: OutlineInputBorder(),
-                      ),
-                      items:
-                          emociones.map((emocion) {
-                            return DropdownMenuItem(
-                              value: emocion,
-                              child: Text(
-                                emocion[0].toUpperCase() + emocion.substring(1),
-                              ),
-                            );
-                          }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _emocionSeleccionada = value!;
-                        });
-                      },
-                    ),
+                    _buildTextField(colorController, "Color"),
+
                     const SizedBox(height: 20),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -228,11 +228,10 @@ class _EditPrendaScreenState extends State<EditPrendaScreen> {
                       ],
                     ),
                     const SizedBox(height: 20),
-
                     ElevatedButton(
                       onPressed: () async {
                         final ok = await vm.actualizarPrenda(
-                          id: widget.prenda['id'],
+                          id: widget.prenda.id,
                           nombre: nombreController.text.trim(),
                           descripcion: descripcionController.text.trim(),
                           precio: double.tryParse(precioController.text) ?? 0.0,
@@ -267,10 +266,12 @@ class _EditPrendaScreenState extends State<EditPrendaScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFFFB5B2),
                       ),
-                      child: const Text("Guardar cambios"),
+                      child: const Text(
+                        "Guardar cambios",
+                        style: TextStyle(color: Colors.white),
+                      ),
                     ),
                     const SizedBox(height: 12),
-
                     TextButton(
                       onPressed: () => _confirmarEliminacion(context, vm),
                       child: const Text(
@@ -306,10 +307,14 @@ class _EditPrendaScreenState extends State<EditPrendaScreen> {
   InputDecoration _inputDecoration(String label) {
     return InputDecoration(
       labelText: label,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+      labelStyle: const TextStyle(color: Color(0xFFFFB5B2)),
+      enabledBorder: OutlineInputBorder(
+        borderSide: const BorderSide(color: Color(0xFFFFB5B2)),
+        borderRadius: BorderRadius.circular(12),
+      ),
       focusedBorder: OutlineInputBorder(
         borderSide: const BorderSide(color: Color(0xFFFFB5B2), width: 2),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
       ),
     );
   }
@@ -329,7 +334,7 @@ class _EditPrendaScreenState extends State<EditPrendaScreen> {
               TextButton(
                 onPressed: () async {
                   Navigator.pop(context);
-                  final ok = await vm.eliminarPrenda(widget.prenda['id']);
+                  final ok = await vm.eliminarPrenda(widget.prenda.id);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(

@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../env.dart';
+import '../services/http_auth_service.dart';
 
 class SettingsViewModel with ChangeNotifier {
   bool _isUpdating = false;
@@ -23,34 +23,26 @@ class SettingsViewModel with ChangeNotifier {
   }
 
   Future<bool> subirNuevaFotoPerfil() async {
-    if (nuevaImagen == null)
-      return true; // Si no hay nueva imagen, no hacemos nada
-
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('jwt_token');
-    if (token == null) return false;
+    if (nuevaImagen == null) return true; // Nada que subir
 
     final url = Uri.parse('$baseURL/usuarios/subir-imagen-perfil');
 
     try {
-      final request =
-          http.MultipartRequest('POST', url)
-            ..headers['Authorization'] = 'Bearer $token'
-            ..files.add(
-              await http.MultipartFile.fromPath('imagen', nuevaImagen!.path),
-            );
+      final response = await httpMultipartPostConAuth(
+        url: url,
+        filePath: nuevaImagen!.path,
+        field: 'imagen',
+      );
 
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
-
-      if (response.statusCode == 200) {
-        nuevaImagen = null; // ✅ Limpiar la imagen temporal tras subir
+      if (response != null && response.statusCode == 200) {
+        nuevaImagen = null;
         return true;
       } else {
+        print('❌ Error al subir imagen: ${response?.statusCode}');
         return false;
       }
     } catch (e) {
-      print('Error subiendo imagen: $e');
+      print('⚠️ Excepción al subir imagen: $e');
       return false;
     }
   }
@@ -68,19 +60,12 @@ class SettingsViewModel with ChangeNotifier {
     final url = Uri.parse('$baseURL/usuarios/editar');
 
     try {
-      final response = await http.put(
-        url,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'nombre': nombre,
-          'apellido': apellido,
-          'bio': bio,
-          'username': username,
-        }),
-      );
+      final response = await httpPutConAuth(url, {
+        'nombre': nombre,
+        'apellido': apellido,
+        'bio': bio,
+        'username': username,
+      });
 
       if (response.statusCode == 200) {
         return {'ok': true};

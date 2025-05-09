@@ -13,6 +13,9 @@ import 'search_screen.dart';
 import 'create_post_screen.dart';
 import 'perfil_usuario_screen.dart';
 import 'configuracion_screen.dart';
+import 'prenda_detail_screen.dart';
+import '../models/prenda.dart';
+import '../models/post.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -50,7 +53,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           listen: false,
         ).cargarPublicacionesGuardadas();
 
-        // 🔥 Esta línea es la que falta
+        await Provider.of<ProfileViewModel>(
+          context,
+          listen: false,
+        ).cargarPrendasGuardadas();
         setState(() {});
       }
     }
@@ -378,13 +384,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         vm.cargarPerfil(userId);
                         vm.cargarMisPublicaciones();
                         vm.cargarPublicacionesGuardadas();
+                        vm.cargarPrendasGuardadas();
                       }
                     }
                   }
                 },
 
                 child: Image.network(
-                  post['imagen_url'] ?? '',
+                  post.imagenUrl ?? '',
                   fit: BoxFit.cover,
                   errorBuilder:
                       (_, __, ___) => Container(color: Colors.grey[300]),
@@ -396,11 +403,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildGridSaved() {
-    final guardadas =
-        Provider.of<ProfileViewModel>(context).publicacionesGuardadas;
+    final vm = Provider.of<ProfileViewModel>(context);
+    final publicaciones = vm.publicacionesGuardadas;
+    final prendas = vm.prendasGuardadas;
 
-    if (guardadas.isEmpty) {
-      return const Center(child: Text("No has guardado publicaciones aún"));
+    final combinadas = <Map<String, dynamic>>[
+      ...publicaciones.map((p) => {'tipo': 'post', 'data': p}),
+      ...prendas.map((p) => {'tipo': 'prenda', 'data': p}),
+    ];
+
+    if (combinadas.isEmpty) {
+      return const Center(
+        child: Text("No has guardado publicaciones ni prendas aún"),
+      );
     }
 
     return Padding(
@@ -410,18 +425,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
         mainAxisSpacing: 8,
         crossAxisSpacing: 8,
         children:
-            guardadas.map((post) {
+            combinadas.map((item) {
+              final String tipo = item['tipo'];
+              final dynamic data = item['data'];
+
               return GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => PostDetailScreen(post: post),
-                    ),
-                  );
+                onTap: () async {
+                  if (tipo == 'post' && data is PostModel) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PostDetailScreen(post: data),
+                      ),
+                    );
+                  } else if (tipo == 'prenda' && data is Prenda) {
+                    final userId = data.usuarioId;
+                    if (userId != null) {
+                      final relacion = await vm.obtenerRelacionConUsuario(
+                        userId,
+                      );
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (_) => PrendaDetailScreen(
+                                prenda: data,
+                                relacionConUsuario: relacion,
+                              ),
+                        ),
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Error: esta prenda no tiene usuario asociado.',
+                          ),
+                        ),
+                      );
+                    }
+                  }
                 },
                 child: Image.network(
-                  post['imagen_url'] ?? '',
+                  (tipo == 'post'
+                          ? (data as PostModel).imagenUrl
+                          : (data as Prenda).imagenUrl) ??
+                      '',
                   fit: BoxFit.cover,
                   errorBuilder:
                       (_, __, ___) => Container(color: Colors.grey[300]),

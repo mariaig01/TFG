@@ -11,6 +11,7 @@ class PrendaDetailViewModel extends ChangeNotifier {
   String? successMessage;
   bool enPrestamo = false;
   DateTime? fechaFinPrestamo;
+  bool estaGuardada = false;
 
   Future<bool> solicitarPrenda(
     int prendaId, {
@@ -78,5 +79,24 @@ class PrendaDetailViewModel extends ChangeNotifier {
       print(' Error al verificar estado de préstamo: $e');
     }
     notifyListeners();
+  }
+
+  Future<void> toggleGuardarPrenda(BuildContext context, int prendaId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('jwt_token');
+
+    final response = await http.post(
+      Uri.parse('$baseURL/prendas/guardar/$prendaId'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      estaGuardada = !estaGuardada;
+      notifyListeners();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error al guardar la prenda')),
+      );
+    }
   }
 }

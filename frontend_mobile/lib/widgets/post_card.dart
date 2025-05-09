@@ -127,11 +127,11 @@ class _PostCardState extends State<PostCard> {
             ),
 
             const SizedBox(height: 12),
-            if (_post.imagenUrl.isNotEmpty)
+            if (_post.imagenUrl != null && _post.imagenUrl!.isNotEmpty)
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: CachedNetworkImage(
-                  imageUrl: _post.imagenUrl,
+                  imageUrl: _post.imagenUrl ?? '',
                   fit: BoxFit.fitWidth,
                   width: double.infinity,
                   placeholder:
@@ -249,21 +249,21 @@ class _PostCardState extends State<PostCard> {
                                     (usuario) => ListTile(
                                       leading: CircleAvatar(
                                         backgroundImage:
-                                            usuario['foto_perfil'] != null
+                                            usuario.fotoPerfil != null
                                                 ? NetworkImage(
-                                                  usuario['foto_perfil'],
+                                                  usuario.fotoPerfil!,
                                                 )
                                                 : null,
                                         child:
-                                            usuario['foto_perfil'] == null
+                                            usuario.fotoPerfil == null
                                                 ? const Icon(Icons.person)
                                                 : null,
                                       ),
-                                      title: Text(usuario['username']),
-                                      subtitle: Text(usuario['tipo']),
+                                      title: Text(usuario.username),
+                                      subtitle: Text(usuario.tipo!),
                                       onTap: () async {
                                         await mensajesVM.enviarMensajeDirecto(
-                                          receptorId: usuario['id'],
+                                          receptorId: usuario.id,
                                           publicacionId: _post.id,
                                           mensaje:
                                               mensajeController.text.trim(),
@@ -274,7 +274,7 @@ class _PostCardState extends State<PostCard> {
                                         ).showSnackBar(
                                           SnackBar(
                                             content: Text(
-                                              'Enviado a ${usuario['username']}',
+                                              'Enviado a ${usuario.username}',
                                             ),
                                           ),
                                         );

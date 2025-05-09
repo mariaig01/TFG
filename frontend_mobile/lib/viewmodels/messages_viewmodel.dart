@@ -4,9 +4,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../env.dart';
+import '../models/user.dart';
 
 class MessagesViewModel extends ChangeNotifier {
-  List<Map<String, dynamic>> usuarios = [];
+  List<UserModel> usuarios = [];
   bool isLoading = false;
 
   Future<void> fetchConversaciones() async {
@@ -26,12 +27,13 @@ class MessagesViewModel extends ChangeNotifier {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        usuarios = List<Map<String, dynamic>>.from(data); // ✅ CORRECTO
+        usuarios =
+            (data as List).map((json) => UserModel.fromJson(json)).toList();
       } else {
-        print("❌ Error al obtener usuarios: ${response.body}");
+        print("Error al obtener usuarios: ${response.body}");
       }
     } catch (e) {
-      print("❌ Excepción: $e");
+      print("Excepción: $e");
     }
 
     isLoading = false;
@@ -63,9 +65,9 @@ class MessagesViewModel extends ChangeNotifier {
     );
 
     if (response.statusCode != 201) {
-      print('❌ Error al enviar mensaje directo: ${response.body}');
+      print('Error al enviar mensaje directo: ${response.body}');
     } else {
-      print('✅ Mensaje enviado correctamente');
+      print('Mensaje enviado correctamente');
     }
   }
 }

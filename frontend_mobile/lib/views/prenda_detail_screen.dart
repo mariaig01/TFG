@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import '../viewmodels/prenda_detail_viewmodel.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import '../models/prenda.dart';
+import '../models/user.dart';
 
 class PrendaDetailScreen extends StatefulWidget {
-  final Map<String, dynamic> prenda;
-  final Map<String, dynamic>? relacionConUsuario;
+  final Prenda prenda;
+
+  final UserModel? relacionConUsuario;
 
   const PrendaDetailScreen({
     super.key,
@@ -22,20 +25,20 @@ class _PrendaDetailScreenState extends State<PrendaDetailScreen> {
   void initState() {
     super.initState();
     final vm = Provider.of<PrendaDetailViewModel>(context, listen: false);
-    vm.verificarEstadoPrestamo(widget.prenda['id']);
+    vm.verificarEstadoPrestamo(widget.prenda.id);
   }
 
   bool puedeSolicitar(PrendaDetailViewModel vm) {
     final esAmigo =
-        widget.relacionConUsuario?['relacion'] == 'amigo' &&
-        widget.relacionConUsuario?['estado'] != 'pendiente';
-    final esSolicitable = widget.prenda['solicitable'] == true;
+        widget.relacionConUsuario?.tipo == 'amigo' &&
+        widget.relacionConUsuario?.estado != 'pendiente';
+    final esSolicitable = widget.prenda.solicitable == true;
     return esAmigo && esSolicitable && !vm.enPrestamo;
   }
 
   @override
   Widget build(BuildContext context) {
-    final categorias = widget.prenda['categorias'] as List<dynamic>? ?? [];
+    final categorias = widget.prenda.categorias as List<dynamic>? ?? [];
 
     return Scaffold(
       backgroundColor: const Color(0xFFFFF0F0),
@@ -49,24 +52,44 @@ class _PrendaDetailScreenState extends State<PrendaDetailScreen> {
               padding: const EdgeInsets.all(16),
               child: ListView(
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.network(
-                      widget.prenda['imagen_url'],
-                      fit: BoxFit.cover,
-                      height: 300,
-                      errorBuilder:
-                          (_, __, ___) =>
-                              Container(color: Colors.grey.shade300),
-                    ),
+                  Stack(
+                    alignment: Alignment.topRight,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          widget.prenda.imagenUrl ?? '',
+                          fit: BoxFit.cover,
+                          height: 300,
+                          width: double.infinity,
+                          errorBuilder:
+                              (_, __, ___) =>
+                                  Container(color: Colors.grey.shade300),
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          vm.estaGuardada
+                              ? Icons.bookmark
+                              : Icons.bookmark_border,
+                          color: const Color(0xFFFFB5B2),
+                        ),
+                        onPressed:
+                            () => vm.toggleGuardarPrenda(
+                              context,
+                              widget.prenda.id,
+                            ),
+                      ),
+                    ],
                   ),
+
                   const SizedBox(height: 20),
-                  _buildCampo("Nombre", widget.prenda['nombre']),
-                  _buildCampo("Descripción", widget.prenda['descripcion']),
-                  _buildCampo("Precio", "${widget.prenda['precio']} €"),
-                  _buildCampo("Talla", widget.prenda['talla']),
-                  _buildCampo("Color", widget.prenda['color']),
-                  _buildCampo("Estación", widget.prenda['estacion']),
+                  _buildCampo("Nombre", widget.prenda.nombre),
+                  _buildCampo("Descripción", widget.prenda.descripcion),
+                  _buildCampo("Precio", "${widget.prenda.precio} €"),
+                  _buildCampo("Talla", widget.prenda.talla),
+                  _buildCampo("Color", widget.prenda.color),
+                  _buildCampo("Estación", widget.prenda.estacion),
                   _buildChipsCampo("Categorías", categorias),
                   const SizedBox(height: 20),
                   if (puedeSolicitar(vm))
@@ -77,7 +100,7 @@ class _PrendaDetailScreenState extends State<PrendaDetailScreen> {
                       ),
                       child: const Text("Solicitar prenda"),
                     )
-                  else if (widget.relacionConUsuario?['relacion'] == 'amigo' &&
+                  else if (widget.relacionConUsuario?.tipo == 'amigo' &&
                       vm.enPrestamo)
                     Column(
                       children: [
@@ -203,7 +226,7 @@ class _PrendaDetailScreenState extends State<PrendaDetailScreen> {
                         listen: false,
                       );
                       await vm.solicitarPrenda(
-                        widget.prenda['id'],
+                        widget.prenda.id,
                         fechaInicio: fechaInicio!,
                         fechaFin: fechaFin!,
                       );

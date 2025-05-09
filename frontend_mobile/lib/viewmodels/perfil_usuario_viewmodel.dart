@@ -3,11 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import '../env.dart';
+import '../models/user.dart';
+import '../models/post.dart';
+import '../models/prenda.dart';
+import '../services/http_auth_service.dart';
 
 class PerfilUsuarioViewModel extends ChangeNotifier {
-  Map<String, dynamic>? user;
-  List<Map<String, dynamic>> publicaciones = [];
-  List<Map<String, dynamic>> prendas = [];
+  UserModel? user;
+  List<PostModel> publicaciones = [];
+  List<Prenda> prendas = [];
   bool isLoading = false;
 
   Future<void> cargarTodo(int userId) async {
@@ -19,10 +23,8 @@ class PerfilUsuarioViewModel extends ChangeNotifier {
     final headers = {'Authorization': 'Bearer $token'};
 
     try {
-      final resUser = await http.get(
-        Uri.parse('$baseURL/usuarios/$userId'),
-        headers: headers,
-      );
+      final url = Uri.parse('$baseURL/usuarios/$userId');
+      final resUser = await httpGetConAuth(url);
 
       if (resUser.statusCode != 200) {
         user = null;
@@ -31,24 +33,33 @@ class PerfilUsuarioViewModel extends ChangeNotifier {
         return;
       }
 
-      user = jsonDecode(resUser.body);
+      final decoded = jsonDecode(resUser.body);
+      print('DEBUG USER JSON: $decoded');
 
-      final pubRes = await http.get(
-        Uri.parse('$baseURL/usuarios/publicaciones/usuario/$userId'),
-        headers: headers,
+      user = UserModel.fromJson(jsonDecode(resUser.body));
+
+      final urlPub = Uri.parse(
+        '$baseURL/usuarios/publicaciones/usuario/$userId',
       );
+      final pubRes = await httpGetConAuth(urlPub);
       if (pubRes.statusCode == 200) {
-        publicaciones = List<Map<String, dynamic>>.from(
-          jsonDecode(pubRes.body),
+        print('⚠️ DEBUG pubRes.body = ${pubRes.body}');
+
+        final dataPub = jsonDecode(pubRes.body);
+        publicaciones = List<PostModel>.from(
+          dataPub.map((p) => PostModel.fromJson(p)),
         );
+      } else {
+        print('Error al cargar publicaciones: ${pubRes.body}');
       }
 
-      final prendasRes = await http.get(
-        Uri.parse('$baseURL/prendas/usuario/$userId'),
-        headers: headers,
-      );
-      if (prendasRes.statusCode == 200) {
-        prendas = List<Map<String, dynamic>>.from(jsonDecode(prendasRes.body));
+      final urlPrenda = Uri.parse('$baseURL/prendas/usuario/$userId');
+      final prendaRes = await httpGetConAuth(urlPrenda);
+      if (prendaRes.statusCode == 200) {
+        print('⚠️ DEBUG prendaRes.body = ${prendaRes.body}');
+
+        final dataPrenda = jsonDecode(prendaRes.body);
+        prendas = List<Prenda>.from(dataPrenda.map((p) => Prenda.fromJson(p)));
       }
 
       final relRes = await http.get(
@@ -57,16 +68,27 @@ class PerfilUsuarioViewModel extends ChangeNotifier {
       );
       if (relRes.statusCode == 200 && user != null) {
         final relData = jsonDecode(relRes.body);
-        user!['relacion'] = relData['relacion'];
-        user!['estado'] = relData['estado'];
-        if (relData.containsKey('estado_seguidor')) {
-          user!['estado_seguidor'] = relData['estado_seguidor'];
-        } else {
-          user!.remove('estado_seguidor');
-        }
+        print('DEBUG REL DATA: ${relRes.body}');
+        print('DECODED: ${jsonDecode(relRes.body)}');
+
+        user = user!.copyWith(
+          tipo: relData['relacion'],
+          estado: relData['estado'],
+          estadoSeguidor:
+              relData.containsKey('estado_seguidor')
+                  ? relData['estado_seguidor']
+                  : null,
+        );
+      }
+
+      if (pubRes.statusCode != 200) {
+        print('Error al cargar publicaciones: ${pubRes.body}');
+      }
+      if (prendaRes.statusCode != 200) {
+        print('Error al cargar prendas: ${prendaRes.body}');
       }
     } catch (e) {
-      print('❌ Error al cargar perfil de usuario: $e');
+      print('Error al cargar datos del usuario: $e');
       user = null;
     }
 

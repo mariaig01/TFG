@@ -11,6 +11,7 @@ import 'create_post_screen.dart';
 import 'perfil_usuario_screen.dart';
 import 'group_messages_screen.dart';
 import '../models/group.dart';
+import '../models/user.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -128,11 +129,11 @@ class _SearchScreenState extends State<SearchScreen> {
                             (usuario) => ListTile(
                               leading: CircleAvatar(
                                 backgroundImage:
-                                    usuario['foto_perfil'] != null
-                                        ? NetworkImage(usuario['foto_perfil'])
+                                    usuario.fotoPerfil != null
+                                        ? NetworkImage(usuario.fotoPerfil!)
                                         : null,
                                 child:
-                                    usuario['foto_perfil'] == null
+                                    usuario.fotoPerfil == null
                                         ? const Icon(Icons.person)
                                         : null,
                               ),
@@ -142,12 +143,12 @@ class _SearchScreenState extends State<SearchScreen> {
                                   MaterialPageRoute(
                                     builder:
                                         (_) => PerfilUsuarioScreen(
-                                          userId: usuario['id'],
+                                          userId: usuario.id,
                                         ),
                                   ),
                                 );
                               },
-                              title: Text(usuario['username']),
+                              title: Text(usuario.username),
                               subtitle: Row(
                                 children: [
                                   _buildRelacionButton(
@@ -176,34 +177,46 @@ class _SearchScreenState extends State<SearchScreen> {
                           ...vm.grupos.map(
                             (grupo) => ListTile(
                               leading:
-                                  grupo['imagen'] != null
+                                  grupo.fotoUrl != null
                                       ? CircleAvatar(
-                                        backgroundImage: NetworkImage(
-                                          '$baseURL${grupo['imagen']}',
-                                        ),
+                                        backgroundImage:
+                                            grupo.fotoUrl != null
+                                                ? NetworkImage(grupo.fotoUrl!)
+                                                : null,
                                       )
                                       : const CircleAvatar(
                                         child: Icon(Icons.group),
                                       ),
-                              title: Text(grupo['nombre']),
+                              title: Text(grupo.nombre),
                               onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder:
-                                        (_) => GroupMessagesScreen(
-                                          group: GroupModel(
-                                            id: grupo['id'].toString(),
-                                            nombre: grupo['nombre'],
-                                            fotoUrl:
-                                                grupo['imagen'] != null
-                                                    ? '$baseURL${grupo['imagen']}'
-                                                    : null,
+                                if (grupo.esMiembro == true) {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder:
+                                          (_) => GroupMessagesScreen(
+                                            group: GroupModel(
+                                              id: grupo.id.toString(),
+                                              nombre: grupo.nombre,
+                                              fotoUrl:
+                                                  grupo.fotoUrl != null
+                                                      ? '$baseURL${grupo.fotoUrl}'
+                                                      : null,
+                                            ),
                                           ),
-                                        ),
-                                  ),
-                                );
+                                    ),
+                                  );
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Debes unirte al grupo para ver los mensajes.',
+                                      ),
+                                    ),
+                                  );
+                                }
                               },
+
                               trailing: ElevatedButton(
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFFFFB5B2),
@@ -222,32 +235,34 @@ class _SearchScreenState extends State<SearchScreen> {
                                     listen: false,
                                   );
                                   bool ok;
-                                  if (grupo['es_miembro'] == true) {
+                                  if (grupo.esMiembro == true) {
                                     ok = await groupVM.abandonarGrupo(
-                                      grupo['id'],
+                                      int.parse(grupo.id),
                                     );
-                                    if (ok) grupo['es_miembro'] = false;
+                                    if (ok)
+                                      grupo = grupo.copyWith(esMiembro: false);
                                   } else {
                                     ok = await groupVM.unirseAGrupo(
-                                      grupo['id'],
+                                      int.parse(grupo.id),
                                     );
-                                    if (ok) grupo['es_miembro'] = true;
+                                    if (ok)
+                                      grupo = grupo.copyWith(esMiembro: true);
                                   }
                                   setState(() {});
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text(
                                         ok
-                                            ? grupo['es_miembro']
-                                                ? 'Te has unido al grupo ${grupo['nombre']}'
-                                                : 'Has abandonado el grupo ${grupo['nombre']}'
+                                            ? grupo.esMiembro == true
+                                                ? 'Te has unido al grupo ${grupo.nombre}'
+                                                : 'Has abandonado el grupo ${grupo.nombre}'
                                             : 'Error en la operación',
                                       ),
                                     ),
                                   );
                                 },
                                 child: Text(
-                                  grupo['es_miembro'] == true
+                                  grupo.esMiembro == true
                                       ? 'Abandonar'
                                       : 'Unirse',
                                 ),
@@ -273,11 +288,11 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Widget _buildRelacionButton({
     required String tipo,
-    required Map<String, dynamic> usuario,
+    required UserModel usuario,
     required SearchViewModel vm,
   }) {
-    final esRelacion = usuario['relacion'] == tipo;
-    final esPendiente = usuario['estado'] == 'pendiente' && esRelacion;
+    final esRelacion = usuario.tipo == tipo;
+    final esPendiente = usuario.estado == 'pendiente' && esRelacion;
 
     final label =
         esPendiente
@@ -299,17 +314,14 @@ class _SearchScreenState extends State<SearchScreen> {
         final yaTiene = esRelacion;
         final ok =
             yaTiene
-                ? await vm.eliminarRelacion(usuario['id'], tipo: tipo)
-                : await vm.enviarSolicitud(usuario['id'], tipo: tipo);
+                ? await vm.eliminarRelacion(usuario.id, tipo: tipo)
+                : await vm.enviarSolicitud(usuario.id, tipo: tipo);
 
         if (ok) {
-          if (yaTiene) {
-            usuario['relacion'] = null;
-            usuario['estado'] = null;
-          } else {
-            usuario['relacion'] = tipo;
-            usuario['estado'] = 'pendiente';
-          }
+          usuario = usuario.copyWith(
+            tipo: yaTiene ? null : tipo,
+            estado: yaTiene ? null : 'pendiente',
+          );
           setState(() {});
         }
 
@@ -319,7 +331,7 @@ class _SearchScreenState extends State<SearchScreen> {
               ok
                   ? yaTiene
                       ? 'Has cancelado la solicitud de $tipo'
-                      : 'Solicitud de $tipo enviada a ${usuario['username']}'
+                      : 'Solicitud de $tipo enviada a ${usuario.username}'
                   : 'Error al procesar la acción',
             ),
           ),

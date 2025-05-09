@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from models import db, User, Seguimiento, Post, Favorito, SolicitudPrenda
+from models import db, User, Seguimiento, Post, Favorito, SolicitudPrenda, Like, Prenda
 from datetime import datetime
 from extensions import logs_collection
 import os
@@ -270,7 +270,7 @@ def solicitudes_recibidas():
     id_actual = int(get_jwt_identity())
     resultado = []
 
-    # 🟣 1. Solicitudes de seguimiento / amistad
+    #  1. Solicitudes de seguimiento / amistad
     seguimientos = Seguimiento.query.filter_by(
         id_seguido=id_actual,
         estado='pendiente'
@@ -288,16 +288,18 @@ def solicitudes_recibidas():
             'fecha': s.fecha_inicio.isoformat()
         })
 
-    # 🟢 2. Solicitudes de prendas
-    solicitudes_prenda = SolicitudPrenda.query.filter_by(
-        id_destinatario=id_actual,
-        estado='pendiente'
-    ).all()
+    #  2. Solicitudes de prendas
+    solicitudes_prenda = SolicitudPrenda.query.filter_by(estado='pendiente').all()
 
     for sp in solicitudes_prenda:
+        prenda = Prenda.query.get(sp.id_prenda)
+        if not prenda or prenda.id_usuario != id_actual:
+            continue  # Solo se muestran solicitudes de prendas del usuario actual
+
         remitente = User.query.get(sp.id_remitente)
         if not remitente:
             continue
+
         resultado.append({
             'id': sp.id,  # ID de la solicitud (no del usuario)
             'username': remitente.username,
@@ -454,58 +456,11 @@ def publicaciones_propias():
         'fecha': p.fecha_publicacion.isoformat(),
         'usuario': p.usuario.username,
         'foto_perfil': f"{current_app.config['BASE_URL']}{usuario.foto_perfil}" if usuario.foto_perfil else None,
-        'likes_count': len(p.likes),
+        'likes_count': Like.query.filter_by(id_publicacion=p.id).count(),
         'ha_dado_like': any(l.id_usuario == user_id for l in p.likes),
+        'visibilidad': p.visibilidad,
         'tipo_relacion': 'propia',
         'id_usuario': p.id_usuario
-    } for p in publicaciones]), 200
-
-
-@users_bp.route('/seguidos-publicaciones', methods=['GET'])
-@jwt_required()
-def publicaciones_seguidos():
-    user_id = int(get_jwt_identity())
-
-    subquery = db.session.query(Seguimiento.id_seguido).filter(
-        Seguimiento.id_seguidor == user_id,
-        Seguimiento.tipo == 'seguidor'
-    ).subquery()
-
-    publicaciones = Post.query.join(User).filter(
-        Post.id_usuario.in_(subquery),
-        Post.visibilidad.in_(['publico', 'seguidores'])
-    ).order_by(Post.fecha_publicacion.desc()).all()
-
-    return jsonify([{
-        'id': p.id,
-        'contenido': p.contenido,
-        'imagen_url': f"{current_app.config['BASE_URL']}{p.imagen_url}" if p.imagen_url else None,
-        'fecha': p.fecha_publicacion.isoformat(),
-        'usuario': p.usuario.username
-    } for p in publicaciones]), 200
-
-
-@users_bp.route('/amigos-publicaciones', methods=['GET'])
-@jwt_required()
-def publicaciones_amigos():
-    user_id = int(get_jwt_identity())
-
-    subquery = db.session.query(Seguimiento.id_seguido).filter(
-        Seguimiento.id_seguidor == user_id,
-        Seguimiento.tipo == 'amigo'
-    ).subquery()
-
-    publicaciones = Post.query.join(User).filter(
-        Post.id_usuario.in_(subquery),
-        Post.visibilidad.in_(['publico', 'seguidores', 'amigos'])
-    ).order_by(Post.fecha_publicacion.desc()).all()
-
-    return jsonify([{
-        'id': p.id,
-        'contenido': p.contenido,
-        'imagen_url': f"{current_app.config['BASE_URL']}{p.imagen_url}" if p.imagen_url else None,
-        'fecha': p.fecha_publicacion.isoformat(),
-        'usuario': p.usuario.username
     } for p in publicaciones]), 200
 
 
@@ -529,10 +484,43 @@ def publicaciones_guardadas():
         'id_usuario': p.id_usuario,
         'foto_perfil': f"{current_app.config['BASE_URL']}{p.usuario.foto_perfil}" if p.usuario.foto_perfil else None,
         'likes_count': len(p.likes),
+        'visibilidad': p.visibilidad,
         'ha_dado_like': any(l.id_usuario == user_id for l in p.likes),
         'tipo_relacion': 'guardado',
         'guardado': Favorito.query.filter_by(id_usuario=user_id, id_publicacion=p.id).first() is not None
     } for p in posts]), 200
+
+
+@users_bp.route('/prendas-guardadas', methods=['GET'])
+@jwt_required()
+def prendas_guardadas():
+    user_id = int(get_jwt_identity())
+
+    favoritos = Favorito.query.filter_by(id_usuario=user_id).filter(Favorito.id_prenda != None).all()
+    id_prendas = [f.id_prenda for f in favoritos]
+
+    from models import Prenda
+    prendas = Prenda.query.filter(Prenda.id.in_(id_prendas)).order_by(Prenda.fecha_agregado.desc()).all()
+
+    return jsonify([
+        {
+            'id': p.id,
+            'nombre': p.nombre,
+            'descripcion': p.descripcion,
+            'precio': float(p.precio),
+            'talla': p.talla,
+            'color': p.color,
+            'tipo': p.tipo,
+            'imagen_url': f"{current_app.config['BASE_URL']}{p.imagen_url}" if p.imagen_url else None,
+            'solicitable': p.solicitable,
+            'fecha_agregado': p.fecha_agregado.isoformat(),
+            'estacion': p.prendas_categorias[0].estacion if p.prendas_categorias else None,
+            'categorias': [rel.categoria.nombre for rel in p.prendas_categorias],
+            'emocion': p.emocion,
+            'id_usuario': p.id_usuario
+        } for p in prendas
+    ]), 200
+
 
 
 @users_bp.route('/publicaciones/usuario/<int:user_id>', methods=['GET'])
@@ -551,8 +539,10 @@ def publicaciones_de_usuario(user_id):
         'fecha': p.fecha_publicacion.isoformat(),
         'usuario': usuario.username,
         'foto_perfil': f"{current_app.config['BASE_URL']}{usuario.foto_perfil}" if usuario.foto_perfil else None,
+        'visibilidad': p.visibilidad,
         'likes_count': len(p.likes),
-        'ha_dado_like': False,  # Opcional: puedes calcularlo si es el usuario autenticado
+        'ha_dado_like': False,
+        'id_usuario': p.id_usuario
     } for p in publicaciones]), 200
 
 

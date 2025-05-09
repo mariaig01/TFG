@@ -27,7 +27,7 @@ class LoginViewModel extends ChangeNotifier {
         return false;
       }
     } catch (e) {
-      // Manejo de errores (por ejemplo, servidor no responde)
+      // Manejo de errores
       errorMessage = "Error: El servidor no responde";
       return false;
     } finally {

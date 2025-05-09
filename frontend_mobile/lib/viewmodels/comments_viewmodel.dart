@@ -1,25 +1,18 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../env.dart';
 import '../services/socket_service.dart';
+import '../services/http_auth_service.dart';
+import '../services/auth_service.dart';
+import '../models/comment.dart';
 
 class CommentViewModel extends ChangeNotifier {
-  List<Map<String, dynamic>> comentarios = [];
+  List<Comentario> _comentarios = [];
+  List<Comentario> get comentarios => _comentarios;
   bool isLoading = false;
   int? idUsuarioActual;
-
-  int? _getUserIdFromToken(String? token) {
-    if (token == null) return null;
-    final parts = token.split('.');
-    if (parts.length != 3) return null;
-    final payload = utf8.decode(
-      base64Url.decode(base64Url.normalize(parts[1])),
-    );
-    final data = jsonDecode(payload);
-    return int.tryParse(data['sub'].toString());
-  }
+  bool _socketInitialized = false;
 
   Future<void> fetchComentarios(int postId) async {
     isLoading = true;
@@ -30,17 +23,21 @@ class CommentViewModel extends ChangeNotifier {
 
     if (token == null) return;
 
-    final url = Uri.parse('$baseURL/posts/api/$postId/comments');
-    final response = await http.get(
-      url,
-      headers: {'Authorization': 'Bearer $token'},
-    );
+    final url = Uri.parse('$baseURL/posts/$postId/comments');
+    // final response = await http.get(
+    //   url,
+    //   headers: {'Authorization': 'Bearer $token'},
+    // );
+    final response = await httpGetConAuth(url);
 
     if (response.statusCode == 200) {
-      final List data = jsonDecode(response.body);
-      comentarios = data.cast<Map<String, dynamic>>();
+      final List responseData = jsonDecode(response.body);
+      _comentarios =
+          responseData
+              .map<Comentario>((data) => Comentario.fromJson(data))
+              .toList();
     } else {
-      comentarios = [];
+      _comentarios = [];
       print("Error: ${response.body}");
     }
 
@@ -54,15 +51,16 @@ class CommentViewModel extends ChangeNotifier {
 
     if (token == null || texto.trim().isEmpty) return;
 
-    final url = Uri.parse('$baseURL/posts/api/$postId/comments');
-    final response = await http.post(
-      url,
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({'contenido': texto}),
-    );
+    final url = Uri.parse('$baseURL/posts/$postId/comments');
+    // final response = await http.post(
+    //   url,
+    //   headers: {
+    //     'Authorization': 'Bearer $token',
+    //     'Content-Type': 'application/json',
+    //   },
+    //   body: jsonEncode({'contenido': texto}),
+    // );
+    final response = await httpPostConAuth(url, {'contenido': texto});
 
     if (response.statusCode == 201) {
       await fetchComentarios(postId); // recargar tras comentar
@@ -72,23 +70,24 @@ class CommentViewModel extends ChangeNotifier {
   }
 
   void initSocketComments(int postId) async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('jwt_token');
-    idUsuarioActual = _getUserIdFromToken(token);
+    if (_socketInitialized) return;
+    _socketInitialized = true;
 
+    idUsuarioActual = await AuthService.getUserIdFromToken();
     if (idUsuarioActual == null) {
       print("⚠️ ID de usuario no disponible para socket");
       return;
     }
 
     final socketService = SocketService();
-    socketService.init(
-      userId: idUsuarioActual!,
-    ); // solo si aún no se había hecho
+    socketService.init(userId: idUsuarioActual!);
 
     socketService.listenToComments(postId, (data) {
-      comentarios.insert(0, Map<String, dynamic>.from(data));
-      notifyListeners();
+      final nuevo = Comentario.fromJson(Map<String, dynamic>.from(data));
+      if (!_comentarios.any((c) => c.id == nuevo.id)) {
+        _comentarios.insert(0, nuevo);
+        notifyListeners();
+      }
     });
   }
 }
