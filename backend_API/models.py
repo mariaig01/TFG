@@ -1,5 +1,8 @@
 from flask_login import UserMixin
 from sqlalchemy.sql import func
+from sqlalchemy.dialects.postgresql import ARRAY, JSON
+import enum
+from sqlalchemy import Enum as PgEnum
 from extensions import db
 from datetime import datetime
 from flask import current_app
@@ -252,6 +255,61 @@ class Favorito(db.Model):
     prenda = db.relationship('Prenda', foreign_keys=[id_prenda], backref='favoritos')
 
 
+class TipoPrendaEnum(enum.Enum):
+    Camisa = "Camisa"
+    Camiseta = "Camiseta"
+    Blusa = "Blusa"
+    Top = "Top"
+    Vestido = "Vestido"
+    Falda = "Falda"
+    Pantalón = "Pantalón"
+    Vaqueros = "Vaqueros"
+    Shorts = "Shorts"
+    Sudadera = "Sudadera"
+    Jersey = "Jersey"
+    Rebeca = "Rebeca"
+    Corset = "Corset"
+    Chaqueta = "Chaqueta"
+    Abrigo = "Abrigo"
+    Blazer = "Blazer"
+    Chaleco = "Chaleco"
+    Cárdigan = "Cárdigan"
+    Mono = "Mono"
+    Traje = "Traje"
+    Chándal = "Chándal"
+    Mallas = "Mallas"
+    Bikini = "Bikini"
+    Polo = "Polo"
+    Zapato = "Zapato"
+    Bota = "Bota"
+    Sandalia = "Sandalia"
+    Tacón = "Tacón"
+    Zapatilla_deportiva = "Zapatilla deportiva"
+    Cinturón = "Cinturón"
+    Bufanda = "Bufanda"
+    Pañuelo = "Pañuelo"
+    Medias = "Medias"
+    Gorro = "Gorro"
+    Sombrero = "Sombrero"
+    Guantes = "Guantes"
+    Bolso = "Bolso"
+    Mochila = "Mochila"
+    Reloj = "Reloj"
+    Pulsera = "Pulsera"
+    Collar = "Collar"
+    Pendientes = "Pendientes"
+    Gafas_de_sol = "Gafas de sol"
+    Otro = "Otro"
+
+class EmocionEnum(enum.Enum):
+    feliz = "feliz"
+    triste = "triste"
+    enfadado = "enfadado"
+    sorprendido = "sorprendido"
+    miedo = "miedo"
+    asco = "asco"
+    neutro = "neutro"
+
 class Prenda(db.Model):
     __tablename__ = 'prendas'
 
@@ -266,20 +324,8 @@ class Prenda(db.Model):
     fecha_agregado = db.Column(db.DateTime, default=datetime.utcnow)
     fecha_modificacion = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     solicitable = db.Column(db.Boolean, default=False)
-    tipo = db.Column(db.Enum(
-        'Camisa', 'Camiseta', 'Blusa', 'Top', 'Vestido', 'Falda', 'Pantalón',
-        'Vaqueros', 'Shorts', 'Sudadera', 'Jersey', 'Rebeca', 'Corset',
-        'Chaqueta', 'Abrigo', 'Blazer', 'Chaleco', 'Cárdigan', 'Mono', 'Traje',
-        'Chándal', 'Mallas', 'Bikini', 'Polo', 'Zapato', 'Bota', 'Sandalia',
-        'Tacón', 'Zapatilla deportiva', 'Cinturón', 'Bufanda', 'Pañuelo',
-        'Medias', 'Gorro', 'Sombrero', 'Guantes', 'Bolso', 'Mochila',
-        'Reloj', 'Pulsera', 'Collar', 'Pendientes', 'Gafas de sol', 'Otro',
-        name='tipo_prenda_enum'
-    ), nullable=False, default='Otro')
-    emocion = db.Column(db.Enum(
-        'feliz', 'triste', 'enfadado', 'sorprendido', 'miedo', 'asco', 'neutro',
-        name='emocion_enum'
-    ), nullable=True)
+    tipo = db.Column(PgEnum(TipoPrendaEnum, name='tipo_prenda_enum'), nullable=False, default=TipoPrendaEnum.Otro)
+    emocion = db.Column(PgEnum(EmocionEnum, name='emocion_enum'), nullable=True)
 
     usuario = db.relationship('User', backref='prendas')
 
@@ -296,13 +342,10 @@ class Prenda(db.Model):
             'fecha_agregado': self.fecha_agregado.isoformat() if self.fecha_agregado else None,
             'fecha_modificacion': self.fecha_modificacion.isoformat() if self.fecha_modificacion else None,
             'solicitable': self.solicitable,
-            'tipo': self.tipo,
-            'emocion': self.emocion
+            'tipo': self.tipo.value if self.tipo else None,
+            'emocion': self.emocion.value if self.emocion else None
 
         }
-
-
-
 
 class Categoria(db.Model):
     __tablename__ = 'categorias'
@@ -313,21 +356,27 @@ class Categoria(db.Model):
     def __repr__(self):
         return f"<Categoria {self.id}: {self.nombre}>"
 
+class EstacionEnum(enum.Enum):
+    Primavera = "Primavera"
+    Verano = "Verano"
+    Otoño = "Otoño"
+    Invierno = "Invierno"
+    Cualquiera = "Cualquiera"
+
 
 class PrendaCategoria(db.Model):
     __tablename__ = 'prendas_categorias'
 
     prenda_id = db.Column(db.Integer, db.ForeignKey('prendas.id', ondelete='CASCADE'), primary_key=True)
     categoria_id = db.Column(db.Integer, db.ForeignKey('categorias.id', ondelete='CASCADE'), primary_key=True)
-    estacion = db.Column(db.Enum('Primavera', 'Verano', 'Otoño', 'Invierno', 'Cualquiera', name='estacion_enum'), nullable=False)
 
-    # Relaciones (opcional, pero recomendable para hacer joins más fáciles)
+    estacion = db.Column(PgEnum(EstacionEnum, name='estacion_enum'), nullable=False)
+
     prenda = db.relationship('Prenda', backref=db.backref('prendas_categorias', cascade='all, delete-orphan'))
     categoria = db.relationship('Categoria', backref=db.backref('prendas_categorias', cascade='all, delete-orphan'))
 
     def __repr__(self):
-        return f"<PrendaCategoria prenda_id={self.prenda_id}, categoria_id={self.categoria_id}, estacion={self.estacion}>"
-
+        return f"<PrendaCategoria prenda_id={self.prenda_id}, categoria_id={self.categoria_id}, estacion={self.estacion.value}>"
 
 
 class SolicitudPrenda(db.Model):
@@ -340,3 +389,19 @@ class SolicitudPrenda(db.Model):
     fecha_solicitud = db.Column(db.DateTime, default=datetime.utcnow)
     fecha_inicio = db.Column(db.DateTime)
     fecha_fin = db.Column(db.DateTime)
+
+
+class CaracteristicasPublicacion(db.Model):
+    __tablename__ = 'caracteristicas_publicacion'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    id_publicacion = db.Column(db.Integer, db.ForeignKey('publicaciones.id', ondelete='CASCADE'), nullable=False, unique=True)
+
+    colores_detectados = db.Column(ARRAY(db.Text))  # ['rgb(255,0,0)', 'rgb(0,255,0)']
+    categorias_detectadas = db.Column(ARRAY(db.Text))  # ['casual', 'elegante']
+    tipo_prendas_detectadas = db.Column(ARRAY(PgEnum(TipoPrendaEnum, name='tipo_prenda_enum')))
+    estacion_deducida = db.Column(PgEnum(EstacionEnum, name='estacion_enum'))
+    embedding_visual = db.Column(JSON)
+
+    publicacion = db.relationship("Post", backref=db.backref("caracteristicas", uselist=False, cascade="all, delete-orphan"))
+

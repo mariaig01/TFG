@@ -514,9 +514,9 @@ def prendas_guardadas():
             'imagen_url': f"{current_app.config['BASE_URL']}{p.imagen_url}" if p.imagen_url else None,
             'solicitable': p.solicitable,
             'fecha_agregado': p.fecha_agregado.isoformat(),
-            'estacion': p.prendas_categorias[0].estacion if p.prendas_categorias else None,
+            'estacion': p.prendas_categorias[0].estacion.value if p.prendas_categorias else None,
             'categorias': [rel.categoria.nombre for rel in p.prendas_categorias],
-            'emocion': p.emocion,
+            'emocion': p.emocion.value,
             'id_usuario': p.id_usuario
         } for p in prendas
     ]), 200

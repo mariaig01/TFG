@@ -26,12 +26,17 @@ def buscar():
             id_seguido=u.id
         ).first()
 
+        tipo = seguimiento.tipo if seguimiento else None
+        estado = seguimiento.estado if seguimiento else None
+        estado_seguidor = estado if seguimiento and tipo == 'seguidor' else None
+
         resultados_usuarios.append({
             'id': u.id,
             'username': u.username,
             'foto_perfil': f"{current_app.config['BASE_URL']}{u.foto_perfil}" if u.foto_perfil else None,
-            'relacion': seguimiento.tipo if seguimiento else None,    # 'seguidor', 'amigo' o None
-            'estado': seguimiento.estado if seguimiento else None     # 'pendiente', 'aceptada', etc.
+            'tipo': tipo,
+            'estado': estado,
+            'estado_seguidor': estado_seguidor
         })
 
     # Buscar grupos con info de si pertenece

@@ -155,12 +155,14 @@ class _SearchScreenState extends State<SearchScreen> {
                                     tipo: 'seguidor',
                                     usuario: usuario,
                                     vm: vm,
+                                    onChanged: () => setState(() {}),
                                   ),
                                   const SizedBox(width: 10),
                                   _buildRelacionButton(
                                     tipo: 'amigo',
                                     usuario: usuario,
                                     vm: vm,
+                                    onChanged: () => setState(() {}),
                                   ),
                                 ],
                               ),
@@ -288,20 +290,29 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Widget _buildRelacionButton({
     required String tipo,
-    required UserModel usuario,
-    required SearchViewModel vm,
+    required UserModel? usuario,
+    required dynamic vm,
+    required VoidCallback onChanged,
   }) {
-    final esRelacion = usuario.tipo == tipo;
-    final esPendiente = usuario.estado == 'pendiente' && esRelacion;
+    final relacion = usuario?.tipo ?? '';
+    final estado = usuario?.estado ?? '';
+    final estadoSeguidor = usuario?.estadoSeguidor ?? '';
 
-    final label =
-        esPendiente
-            ? (tipo == 'amigo' ? '🕘 Amistad' : '🕘 Seguir')
-            : esRelacion
-            ? (tipo == 'amigo' ? '❌ Amistad' : '❌ Seguir')
-            : tipo == 'amigo'
-            ? 'Amistad'
-            : 'Seguir';
+    final esRelacion =
+        relacion == tipo ||
+        (tipo == 'seguidor' && estadoSeguidor == 'pendiente');
+    final esPendiente =
+        (estado == 'pendiente' && relacion == tipo) ||
+        (tipo == 'seguidor' && estadoSeguidor == 'pendiente');
+
+    String label;
+    if (esPendiente) {
+      label = '🕘 ${tipo == 'amigo' ? 'Amistad' : 'Seguir'}';
+    } else if (esRelacion) {
+      label = '❌ ${tipo == 'amigo' ? 'Amistad' : 'Seguir'}';
+    } else {
+      label = tipo == 'amigo' ? 'Amistad' : 'Seguir';
+    }
 
     return ElevatedButton(
       style: ElevatedButton.styleFrom(
@@ -314,15 +325,14 @@ class _SearchScreenState extends State<SearchScreen> {
         final yaTiene = esRelacion;
         final ok =
             yaTiene
-                ? await vm.eliminarRelacion(usuario.id, tipo: tipo)
-                : await vm.enviarSolicitud(usuario.id, tipo: tipo);
+                ? await vm.eliminarRelacion(usuario!.id, tipo: tipo)
+                : await vm.enviarSolicitud(usuario!.id, tipo: tipo);
 
         if (ok) {
-          usuario = usuario.copyWith(
-            tipo: yaTiene ? null : tipo,
-            estado: yaTiene ? null : 'pendiente',
+          await context.read<SearchViewModel>().actualizarRelacionUsuario(
+            usuario.id,
           );
-          setState(() {});
+          onChanged();
         }
 
         ScaffoldMessenger.of(context).showSnackBar(

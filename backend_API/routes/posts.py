@@ -5,10 +5,9 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.utils import secure_filename
 from extensions import socketio
 from extensions import db, logs_collection
-from models import Post, User, Seguimiento, Comentario, Like, Favorito
+from models import Post, User, Seguimiento, Comentario, Like, Favorito, CaracteristicasPublicacion
 from sqlalchemy import select, union_all
 from datetime import datetime
-
 
 
 posts_bp = Blueprint('posts', __name__, url_prefix='/posts')
@@ -74,6 +73,7 @@ def crear_post_mobile():
 
     db.session.add(nueva_post)
     db.session.commit()
+
 
     if logs_collection is not None:
         logs_collection.insert_one({

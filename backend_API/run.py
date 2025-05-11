@@ -1,3 +1,6 @@
+import gevent.monkey
+gevent.monkey.patch_all()
+
 from flask import Flask
 from config import DevelopmentConfig as Config
 from extensions import socketio, db, jwt, mail
@@ -14,13 +17,6 @@ from flask_cors import CORS
 def create_app():
     app = Flask(__name__, static_folder='app/static')
     app.config.from_object(Config)
-    # CORS(auth_bp, origins=app.config['CORS_ORIGINS'])
-    # CORS(posts_bp, origins=app.config['CORS_ORIGINS'])
-    # CORS(mensajes_bp, origins=app.config['CORS_ORIGINS'])
-    # CORS(groups_bp, origins=app.config['CORS_ORIGINS'])
-    # CORS(users_bp, origins=app.config['CORS_ORIGINS'])
-    # CORS(general_bp, origins=app.config['CORS_ORIGINS'])
-    # CORS(prendas_bp, origins=app.config['CORS_ORIGINS'])
     CORS(app, supports_credentials=True)
 
     # Inicializa extensiones
@@ -48,3 +44,5 @@ import socketio_handlers
 if __name__ == '__main__':
     print("Ejecutando servidor Flask con soporte WebSocket (eventlet)")
     socketio.run(app, host='0.0.0.0', port=5000)
+    #app.run(host='0.0.0.0', port=5000, debug=True)
+

@@ -95,15 +95,41 @@ class SearchViewModel extends ChangeNotifier {
       );
 
       if (res.statusCode == 200) {
-        print("✅ Relación eliminada con éxito");
+        print("Relación eliminada con éxito");
         return true;
       } else {
-        print("⚠️ Fallo al eliminar relación: ${res.statusCode} ${res.body}");
+        print("Fallo al eliminar relación: ${res.statusCode} ${res.body}");
         return false;
       }
     } catch (e) {
-      print("❌ Error al eliminar relación: $e");
+      print("Error al eliminar relación: $e");
       return false;
+    }
+  }
+
+  Future<void> actualizarRelacionUsuario(int userId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('jwt_token');
+    final headers = {'Authorization': 'Bearer $token'};
+
+    try {
+      final url = Uri.parse('$baseURL/usuarios/$userId/relacion');
+      final res = await http.get(url, headers: headers);
+
+      if (res.statusCode == 200) {
+        final relData = jsonDecode(res.body);
+        final index = usuarios.indexWhere((u) => u.id == userId);
+        if (index != -1) {
+          usuarios[index] = usuarios[index].copyWith(
+            tipo: relData['relacion'],
+            estado: relData['estado'],
+            estadoSeguidor: relData['estado_seguidor'],
+          );
+          notifyListeners();
+        }
+      }
+    } catch (e) {
+      print('Error al actualizar relación: $e');
     }
   }
 }
