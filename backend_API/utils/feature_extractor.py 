@@ -9,7 +9,7 @@ from sklearn.model_selection import train_test_split
 # Etiquetas posibles
 estilos = ['casual', 'formal', 'deportivo', 'clasico', 'urbano', 'romantico', 'minimalista', 'vintage']
 estaciones = ['verano', 'invierno', 'primavera', 'otoño']
-ocasiones = ['trabajo', 'cita', 'diario', 'evento formal', 'fiesta']
+ocasiones = ['trabajo', 'cita', 'diario', 'evento', 'fiesta']
 
 IMG_SIZE = (224, 224)
 

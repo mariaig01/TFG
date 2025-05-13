@@ -26,6 +26,7 @@ import 'services/likes_notifier.dart';
 import 'services/favorites_notifier.dart';
 import 'viewmodels/direct_messages_viewmodel.dart';
 import 'viewmodels/configuracion_viewmodel.dart';
+import 'viewmodels/graficos_costos_viewmodel.dart';
 
 final RouteObserver<PageRoute> routeObserver = RouteObserver<PageRoute>();
 
@@ -59,6 +60,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => LikesNotifier()),
         ChangeNotifierProvider(create: (_) => FavoritesNotifier()),
         ChangeNotifierProvider(create: (_) => SettingsViewModel()),
+        ChangeNotifierProvider(create: (_) => GraficosCostosViewModel()),
       ],
       child: const MyApp(),
     ),

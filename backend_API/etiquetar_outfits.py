@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 # Configura aquí tus etiquetas posibles
 estilos = ['casual', 'formal', 'deportivo', 'clasico', 'urbano', 'romantico', 'minimalista', 'vintage']
 estaciones = ['verano', 'invierno', 'primavera', 'otoño']
-ocasiones = ['trabajo', 'cita', 'diario', 'evento formal', 'fiesta']
+ocasiones = ['trabajo', 'cita', 'diario', 'evento', 'fiesta']
 
 IMAGES_FOLDER = 'app/datasets'
 CSV_PATH = os.path.join(IMAGES_FOLDER, 'outfits.csv')

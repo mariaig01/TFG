@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from models import User, Grupo, GrupoUsuario, Seguimiento
+from models import db, User, Grupo, GrupoUsuario, Seguimiento, Prenda
 
 general_bp = Blueprint('general', __name__, url_prefix='/api')
 
@@ -57,3 +57,45 @@ def buscar():
         'grupos': resultados_grupos
     }), 200
 
+@general_bp.route('/costos/total', methods=['GET'])
+@jwt_required()
+def obtener_costo_total():
+    user_id = get_jwt_identity()
+    total = db.session.query(db.func.sum(Prenda.precio)).filter(Prenda.id_usuario == user_id)\
+        .scalar()
+    return jsonify({"total": float(total) if total else 0.0})
+
+@general_bp.route('/costos/por-tipo', methods=['GET'])
+@jwt_required()
+def obtener_costo_por_tipo():
+    user_id = get_jwt_identity()
+    resultados = db.session.query(
+        Prenda.tipo, db.func.sum(Prenda.precio)
+    ).filter(
+        Prenda.id_usuario == user_id
+    ).group_by(
+        Prenda.tipo
+    ).all()
+
+    response = {tipo.value: float(total) for tipo, total in resultados if total is not None}
+    return jsonify(response)
+
+
+@general_bp.route('/costos/evolucion', methods=['GET'])
+@jwt_required()
+def obtener_evolucion_gastos_diaria():
+    user_id = get_jwt_identity()
+    resultados = db.session.query(
+        db.func.to_char(Prenda.fecha_agregado, 'YYYY-MM-DD'),
+        db.func.sum(Prenda.precio)
+    ).filter(
+        Prenda.id_usuario == user_id
+    ).group_by(
+        db.func.to_char(Prenda.fecha_agregado, 'YYYY-MM-DD')
+    ).order_by(
+        db.func.to_char(Prenda.fecha_agregado, 'YYYY-MM-DD')
+    ).all()
+
+    return jsonify([
+        {"dia": dia, "total": float(total)} for dia, total in resultados if total is not None
+    ])

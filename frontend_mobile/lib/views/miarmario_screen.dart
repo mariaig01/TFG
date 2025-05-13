@@ -5,6 +5,7 @@ import '../viewmodels/miarmario_viewmodel.dart';
 import '../widgets/armario_nav_bar.dart';
 import 'feed_screen.dart';
 import 'edit_prenda_screen.dart';
+import 'graficos_costos_screen.dart';
 
 class MiArmarioScreen extends StatefulWidget {
   const MiArmarioScreen({super.key});
@@ -46,7 +47,18 @@ class _MiArmarioScreenState extends State<MiArmarioScreen> {
       bottomNavigationBar: ArmarioNavBar(
         currentIndex: 2,
         onTap: (index) {
-          // TODO: Navegar entre IA, Gráficos, Asistente, Comparador
+          if (index == 0) {
+            // IA
+          } else if (index == 1) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => GraficosCostosScreen()),
+            );
+          } else if (index == 2) {
+            // mi armario
+          } else if (index == 3) {
+            // asistente
+          } else if (index == 4) {}
         },
       ),
       body: Padding(
