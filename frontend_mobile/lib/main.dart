@@ -27,6 +27,8 @@ import 'services/favorites_notifier.dart';
 import 'viewmodels/direct_messages_viewmodel.dart';
 import 'viewmodels/configuracion_viewmodel.dart';
 import 'viewmodels/graficos_costos_viewmodel.dart';
+import 'viewmodels/search_prendas_viewmodel.dart';
+import 'viewmodels/asistente_belleza_viewmodel.dart';
 
 final RouteObserver<PageRoute> routeObserver = RouteObserver<PageRoute>();
 
@@ -61,6 +63,8 @@ void main() {
         ChangeNotifierProvider(create: (_) => FavoritesNotifier()),
         ChangeNotifierProvider(create: (_) => SettingsViewModel()),
         ChangeNotifierProvider(create: (_) => GraficosCostosViewModel()),
+        ChangeNotifierProvider(create: (_) => SearchPrendasViewModel()),
+        ChangeNotifierProvider(create: (_) => AsistenteBellezaViewModel()),
       ],
       child: const MyApp(),
     ),

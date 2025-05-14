@@ -6,6 +6,8 @@ import '../widgets/armario_nav_bar.dart';
 import 'feed_screen.dart';
 import 'edit_prenda_screen.dart';
 import 'graficos_costos_screen.dart';
+import 'search_prendas_screen.dart';
+import 'asistente_belleza_screen.dart';
 
 class MiArmarioScreen extends StatefulWidget {
   const MiArmarioScreen({super.key});
@@ -34,6 +36,7 @@ class _MiArmarioScreenState extends State<MiArmarioScreen> {
           "Mi Armario",
           style: TextStyle(color: Color(0xFFFFB5B2)),
         ),
+        centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Color(0xFFFFB5B2)),
           onPressed: () {
@@ -48,7 +51,7 @@ class _MiArmarioScreenState extends State<MiArmarioScreen> {
         currentIndex: 2,
         onTap: (index) {
           if (index == 0) {
-            // IA
+            //IA
           } else if (index == 1) {
             Navigator.push(
               context,
@@ -57,8 +60,16 @@ class _MiArmarioScreenState extends State<MiArmarioScreen> {
           } else if (index == 2) {
             // mi armario
           } else if (index == 3) {
-            // asistente
-          } else if (index == 4) {}
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => AsistenteBellezaScreen()),
+            );
+          } else if (index == 4) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => SearchPrendasScreen()),
+            );
+          }
         },
       ),
       body: Padding(

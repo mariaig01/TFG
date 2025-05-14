@@ -5,6 +5,8 @@ import '../viewmodels/graficos_costos_viewmodel.dart';
 import '../widgets/armario_nav_bar.dart';
 import 'miarmario_screen.dart';
 import 'feed_screen.dart';
+import 'search_prendas_screen.dart';
+import 'asistente_belleza_screen.dart';
 
 class GraficosCostosScreen extends StatelessWidget {
   const GraficosCostosScreen({super.key});
@@ -27,6 +29,11 @@ class GraficosCostosScreen extends StatelessWidget {
               );
             },
           ),
+          title: const Text(
+            "Gasto en moda",
+            style: TextStyle(color: Color(0xFFFFB5B2)),
+          ),
+          centerTitle: true,
         ),
 
         body: Consumer<GraficosCostosViewModel>(
@@ -126,21 +133,24 @@ class GraficosCostosScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     SizedBox(
-                      height: 200,
+                      height: 250,
                       child: LineChart(
                         LineChartData(
-                          gridData: FlGridData(show: false),
+                          minY: 0,
+                          gridData: FlGridData(show: true),
                           titlesData: FlTitlesData(
                             bottomTitles: AxisTitles(
                               sideTitles: SideTitles(
                                 showTitles: true,
+                                reservedSize: 32,
+                                interval: 1,
                                 getTitlesWidget: (value, meta) {
                                   final int index = value.toInt();
                                   if (index < vm.evolucionDiaria.length) {
-                                    final dia =
+                                    final fecha =
                                         vm.evolucionDiaria[index]['dia'];
                                     return Text(
-                                      dia.substring(5), // MM-DD
+                                      fecha.substring(5), // MM-DD
                                       style: const TextStyle(
                                         fontSize: 10,
                                         color: Color(0xFFFFB5B2),
@@ -154,9 +164,11 @@ class GraficosCostosScreen extends StatelessWidget {
                             leftTitles: AxisTitles(
                               sideTitles: SideTitles(
                                 showTitles: true,
+                                reservedSize: 40,
+                                interval: 1000,
                                 getTitlesWidget:
-                                    (value, meta) => Text(
-                                      '${value.toInt()}€',
+                                    (value, _) => Text(
+                                      '${value ~/ 1000}K',
                                       style: const TextStyle(
                                         fontSize: 10,
                                         color: Color(0xFFFFB5B2),
@@ -164,14 +176,21 @@ class GraficosCostosScreen extends StatelessWidget {
                                     ),
                               ),
                             ),
+                            topTitles: AxisTitles(
+                              sideTitles: SideTitles(showTitles: false),
+                            ),
+                            rightTitles: AxisTitles(
+                              sideTitles: SideTitles(showTitles: false),
+                            ),
                           ),
                           borderData: FlBorderData(show: false),
                           lineBarsData: [
                             LineChartBarData(
                               isCurved: true,
-                              barWidth: 2,
+                              barWidth: 3,
                               color: const Color(0xFFFFB5B2),
-                              dotData: FlDotData(show: false),
+                              belowBarData: BarAreaData(show: false),
+                              dotData: FlDotData(show: true),
                               spots: List.generate(vm.evolucionDiaria.length, (
                                 i,
                               ) {
@@ -183,6 +202,7 @@ class GraficosCostosScreen extends StatelessWidget {
                         ),
                       ),
                     ),
+
                     const SizedBox(height: 24),
                   ],
                 ),
@@ -203,9 +223,15 @@ class GraficosCostosScreen extends StatelessWidget {
                 MaterialPageRoute(builder: (_) => MiArmarioScreen()),
               );
             } else if (index == 3) {
-              // Asistente
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => AsistenteBellezaScreen()),
+              );
             } else if (index == 4) {
-              // Comparador
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => SearchPrendasScreen()),
+              );
             }
           },
         ),

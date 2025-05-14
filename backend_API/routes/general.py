@@ -1,6 +1,8 @@
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from models import db, User, Grupo, GrupoUsuario, Seguimiento, Prenda
+import requests
+from utils.analisis_imagen import analizar_foto
 
 general_bp = Blueprint('general', __name__, url_prefix='/api')
 
@@ -57,6 +59,55 @@ def buscar():
         'grupos': resultados_grupos
     }), 200
 
+
+
+
+@general_bp.route('/search-prendas', methods=['GET'])
+def search_prendas():
+    query = request.args.get('q')
+    if not query:
+        return jsonify([])
+
+    try:
+        import os
+        api_key = os.getenv('SERPAPI_KEY')
+
+        params = {
+            "engine": "google",
+            "q": query,
+            "tbm": "shop",
+            "api_key": api_key,
+            "num": 30,
+            "async": "true"
+        }
+
+        response = requests.get(
+            "https://serpapi.com/search",
+            params=params,
+            timeout=10  # previene cuelgues
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        productos = data.get("shopping_results", [])
+
+        prendas = [{
+            "store": p.get("source", "Tienda"),
+            "product": p.get("title", "Producto"),
+            "price": p.get("price", "0 €"),
+            "imagen": p.get("thumbnail", ""),
+            "link": p.get("link") or p.get("product_link", "")
+        } for p in productos if p.get("link") or p.get("product_link")]
+
+        return jsonify(prendas)
+
+    except Exception as e:
+        print(f"Error en búsqueda SerpApi: {e}")
+        return jsonify([]), 500
+
+
+
+
 @general_bp.route('/costos/total', methods=['GET'])
 @jwt_required()
 def obtener_costo_total():
@@ -99,3 +150,22 @@ def obtener_evolucion_gastos_diaria():
     return jsonify([
         {"dia": dia, "total": float(total)} for dia, total in resultados if total is not None
     ])
+
+
+@general_bp.route('/analisis-color', methods=['POST'])
+@jwt_required()
+def analisis_color():
+    if 'imagen' not in request.files:
+        return jsonify({'error': 'No se encontró la imagen en la solicitud'}), 400
+
+    imagen = request.files['imagen']
+    if imagen.filename == '':
+        return jsonify({'error': 'Nombre de archivo vacío'}), 400
+
+    try:
+        # Análisis simulado o real
+        resultado = analizar_foto(imagen)
+        return jsonify(resultado), 200
+
+    except Exception as e:
+        return jsonify({'error': f'Error al procesar la imagen: {str(e)}'}), 500
