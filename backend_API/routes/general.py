@@ -2,7 +2,10 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from models import db, User, Grupo, GrupoUsuario, Seguimiento, Prenda
 import requests
-from utils.analisis_imagen import analizar_foto
+from fastapi import UploadFile, File
+import os
+import shutil
+
 
 general_bp = Blueprint('general', __name__, url_prefix='/api')
 
@@ -151,21 +154,3 @@ def obtener_evolucion_gastos_diaria():
         {"dia": dia, "total": float(total)} for dia, total in resultados if total is not None
     ])
 
-
-@general_bp.route('/analisis-color', methods=['POST'])
-@jwt_required()
-def analisis_color():
-    if 'imagen' not in request.files:
-        return jsonify({'error': 'No se encontró la imagen en la solicitud'}), 400
-
-    imagen = request.files['imagen']
-    if imagen.filename == '':
-        return jsonify({'error': 'Nombre de archivo vacío'}), 400
-
-    try:
-        # Análisis simulado o real
-        resultado = analizar_foto(imagen)
-        return jsonify(resultado), 200
-
-    except Exception as e:
-        return jsonify({'error': f'Error al procesar la imagen: {str(e)}'}), 500

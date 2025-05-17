@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:convert'; // Asegúrate de importar esto para json.decode
 import 'dart:io';
 import '../env.dart';
 import '../services/http_auth_service.dart';
@@ -10,17 +11,19 @@ class AsistenteBellezaViewModel extends ChangeNotifier {
   List<String> coloresRecomendados = [];
   String? peinados;
   String? maquillaje;
+  String? tonoPiel;
+  String? subEstacion;
 
   Future<void> analizarFoto(File imagen) async {
     isLoading = true;
     errorMessage = null;
-    successMessage = null;
     coloresRecomendados = [];
+    tonoPiel = null;
+    peinados = null;
+    maquillaje = null;
     notifyListeners();
 
-    final uri = Uri.parse(
-      '$baseURL/api/analisis-color',
-    ); // Modifica si usas otro endpoint
+    final uri = Uri.parse('$baseURL2/recomendaciones/colorimetria');
 
     try {
       final response = await httpMultipartPostConAuth(
@@ -31,12 +34,15 @@ class AsistenteBellezaViewModel extends ChangeNotifier {
       );
 
       if (response != null && response.statusCode == 200) {
-        // Simulación del análisis (sustituye por JSON real si aplica)
-        coloresRecomendados = ['Verde esmeralda', 'Rosa pastel', 'Gris perla'];
-        successMessage = 'Análisis completado con éxito';
+        final jsonResponse = json.decode(response.body);
+        tonoPiel = jsonResponse['tono_piel'];
+        subEstacion = jsonResponse['subestacion'];
+        coloresRecomendados = List<String>.from(
+          jsonResponse['colores_recomendados'] ?? [],
+        );
       } else {
         errorMessage =
-            'Error: ${response?.body ?? 'sin respuesta del servidor'}';
+            'Error: ${response?.body ?? 'Sin respuesta del servidor'}';
       }
     } catch (e) {
       errorMessage = 'Error al analizar la imagen: $e';

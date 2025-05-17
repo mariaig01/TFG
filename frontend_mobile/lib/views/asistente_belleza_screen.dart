@@ -10,15 +10,36 @@ import 'graficos_costos_screen.dart';
 import 'miarmario_screen.dart';
 import 'search_prendas_screen.dart';
 
-class AsistenteBellezaScreen extends StatefulWidget {
+class AsistenteBellezaScreen extends StatelessWidget {
   const AsistenteBellezaScreen({super.key});
 
   @override
-  State<AsistenteBellezaScreen> createState() => _AsistenteBellezaScreenState();
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (_) => AsistenteBellezaViewModel(),
+      child: const _AsistenteBellezaContent(),
+    );
+  }
 }
 
-class _AsistenteBellezaScreenState extends State<AsistenteBellezaScreen> {
+class _AsistenteBellezaContent extends StatefulWidget {
+  const _AsistenteBellezaContent();
+
+  @override
+  State<_AsistenteBellezaContent> createState() =>
+      _AsistenteBellezaContentState();
+}
+
+class _AsistenteBellezaContentState extends State<_AsistenteBellezaContent> {
   File? selectedImage;
+
+  int _hexToColorInt(String hexColor) {
+    hexColor = hexColor.replaceAll('#', '');
+    if (hexColor.length == 6) {
+      hexColor = 'FF$hexColor'; // Add alpha value if not present
+    }
+    return int.parse(hexColor, radix: 16);
+  }
 
   Future<bool> _checkPermissions() async {
     var status = await Permission.photos.request();
@@ -156,29 +177,46 @@ class _AsistenteBellezaScreenState extends State<AsistenteBellezaScreen> {
               const SizedBox(height: 30),
               if (vm.isLoading)
                 const CircularProgressIndicator()
-              else if (vm.errorMessage != null)
-                Text(
-                  vm.errorMessage!,
-                  style: const TextStyle(color: Colors.red),
-                ),
+              else
+                const SizedBox.shrink(),
+
               const SizedBox(height: 30),
 
-              // Botones de recomendaciones
               _botonRecomendacion("Colorimetría", () {
                 _mostrarDialogo(
                   context,
                   "Colorimetría",
-                  vm.coloresRecomendados.isNotEmpty
-                      ? Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children:
-                            vm.coloresRecomendados
-                                .map((color) => Text(color))
-                                .toList(),
-                      )
-                      : const Text("No hay recomendaciones disponibles."),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (vm.tonoPiel != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8.0),
+                          child: Text(
+                            'Tono de piel detectado: ${vm.tonoPiel}\nSubestación detectada: ${vm.subEstacion}',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      if (vm.coloresRecomendados.isNotEmpty)
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children:
+                              vm.coloresRecomendados.map((color) {
+                                return CircleAvatar(
+                                  backgroundColor: Color(_hexToColorInt(color)),
+                                  radius: 16,
+                                );
+                              }).toList(),
+                        )
+                      else
+                        const Text("No hay recomendaciones disponibles."),
+                    ],
+                  ),
                 );
               }),
+
               const SizedBox(height: 12),
               _botonRecomendacion("Estilo de corte de pelo ", () {
                 _mostrarDialogo(
