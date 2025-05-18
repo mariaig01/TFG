@@ -2,6 +2,8 @@ import cv2
 import numpy as np
 import mediapipe as mp
 from sklearn.cluster import KMeans
+from utils.hair_color import detect_hair_color
+from utils.eye_color import detect_eye_color
 
 # Inicializar MediaPipe solo una vez
 mp_face_detection = mp.solutions.face_detection
@@ -30,6 +32,39 @@ def _clasificar_subtono(rgb_color):
         return 'frío'
     else:
         return 'neutro'
+
+def determinar_subestacion(tono_piel, color_pelo, color_ojos):
+    pelo = color_pelo.lower()
+    ojos = color_ojos.lower()
+
+    if tono_piel == "claro":
+        if pelo in ["blonde", "light brown"]:
+            if ojos in ["blue", "green"]:
+                return "Primavera Brillante"
+            elif ojos in ["blue gray", "green gray"]:
+                return "Primavera Suave"
+        elif pelo in ["dark brown", "black"]:
+            return "Verano Suave"
+
+    elif tono_piel == "medio":
+        if pelo in ["light brown", "dark brown"]:
+            if ojos in ["brown", "brown gray"]:
+                return "Otoño Verdadero"
+            elif ojos in ["green", "green gray"]:
+                return "Primavera Verdadera"
+        elif pelo in ["black"]:
+            return "Invierno Verdadero"
+
+    elif tono_piel == "oscuro":
+        if pelo in ["black", "brown black"]:
+            if ojos in ["brown", "brown black", "blue gray"]:
+                return "Invierno Oscuro"
+            elif ojos in ["green gray", "blue"]:
+                return "Invierno Brillante"
+        elif pelo in ["dark brown"]:
+            return "Otoño Oscuro"
+
+    return "Verano Suave"
 
 def colores_por_subestacion(subestacion):
     paletas = {
@@ -132,100 +167,185 @@ def colores_por_subestacion(subestacion):
     }
     return paletas.get(subestacion, ["colores neutros"])
 
-def determinar_subestacion(tono_piel, subtono_piel, subtono_pelo, subtono_ojos):
-    if tono_piel == "claro" and subtono_piel == "cálido" and subtono_pelo == "cálido":
-        return "Primavera Suave"
-    elif tono_piel in ["claro", "medio"] and subtono_piel == "cálido" and subtono_ojos in ["frío", "neutro"]:
-        return "Primavera Brillante"
-    elif tono_piel == "medio" and subtono_piel == "cálido":
-        return "Primavera Verdadera"
-    elif tono_piel == "claro" and subtono_piel == "frío" and subtono_pelo == "frío":
-        return "Verano Suave"
-    elif tono_piel in ["claro", "medio"] and subtono_piel == "frío" and subtono_ojos == "frío":
-        return "Verano Verdadero"
-    elif tono_piel == "medio" and subtono_piel in ["frío", "neutro"]:
-        return "Verano Suave"
-    elif tono_piel in ["medio", "oscuro"] and subtono_piel == "cálido":
-        return "Otoño Verdadero"
-    elif tono_piel == "medio" and subtono_piel in ["cálido", "neutro"]:
-        return "Otoño Apagado"
-    elif tono_piel == "oscuro" and subtono_piel == "cálido":
-        return "Otoño Oscuro"
-    elif tono_piel == "oscuro" and subtono_piel == "frío" and subtono_ojos in ["oscuro", "frío"]:
-        return "Invierno Oscuro"
-    elif tono_piel in ["claro", "medio"] and subtono_piel == "frío" and subtono_ojos in ["brillante", "frío"]:
-        return "Invierno Brillante"
-    elif subtono_piel == "frío" and subtono_pelo == "frío" and subtono_ojos == "frío":
-        return "Invierno Verdadero"
+
+def recomendaciones_maquillaje_por_subestacion(subestacion):
+    maquillaje = {
+        "Primavera Brillante": [
+            "Base ligera con acabado luminoso",
+            "Colorete en tonos melocotón o coral",
+            "Sombras doradas, champagne o verdes menta",
+            "Labiales en tonos coral, fresa o rosa vivo"
+        ],
+        "Primavera Cálida": [
+            "Base con subtono cálido",
+            "Colorete en tonos durazno o albaricoque",
+            "Sombras en tonos tierra claros y dorados",
+            "Labiales en tonos salmón o coral suave"
+        ],
+        "Primavera Clara": [
+            "Base ligera con acabado natural",
+            "Colorete en tonos rosa claro o melocotón",
+            "Sombras en tonos pastel como rosa, lavanda o verde menta",
+            "Labiales en tonos rosa claro o coral suave"
+        ],
+        "Verano Suave": [
+            "Base satinada o semi-mate",
+            "Colorete en tonos rosa empolvado o malva",
+            "Sombras en tonos lavanda, rosa suave o gris topo",
+            "Labiales en tonos nude rosados o frambuesa claro"
+        ],
+        "Verano Frío": [
+            "Base con subtono rosa",
+            "Colorete en tonos rosa frío o malva",
+            "Sombras en tonos azul acero, gris o lavanda",
+            "Labiales en tonos rosa frío o ciruela claro"
+        ],
+        "Verano Claro": [
+            "Base ligera con acabado luminoso",
+            "Colorete en tonos rosa claro o melocotón",
+            "Sombras en tonos pastel como azul cielo o verde menta",
+            "Labiales en tonos rosa claro o coral suave"
+        ],
+        "Otoño Verdadero": [
+            "Base cálida mate o luminosa",
+            "Colorete en tonos terracota o melocotón",
+            "Sombras en tonos cobre, verde oliva o marrones cálidos",
+            "Labiales en tonos teja, ladrillo o anaranjados"
+        ],
+        "Otoño Profundo": [
+            "Base con subtono cálido y cobertura media",
+            "Colorete en tonos ciruela o bronce",
+            "Sombras en tonos chocolate, verde bosque o bronce",
+            "Labiales en tonos vino, marrón rojizo o terracota"
+        ],
+        "Otoño Suave": [
+            "Base con acabado natural y subtono cálido",
+            "Colorete en tonos melocotón suave o rosa cálido",
+            "Sombras en tonos beige, topo o verde oliva claro",
+            "Labiales en tonos nude cálidos o coral suave"
+        ],
+        "Invierno Oscuro": [
+            "Base mate de alta cobertura",
+            "Colorete en tonos ciruela o burdeos",
+            "Sombras en tonos esmeralda, granate o azul marino",
+            "Labiales en tonos vino, rojo oscuro o fucsia profundo"
+        ],
+        "Invierno Brillante": [
+            "Base con acabado luminoso y subtono frío",
+            "Colorete en tonos rosa intenso o fucsia",
+            "Sombras en tonos azul eléctrico, plata o morado vibrante",
+            "Labiales en tonos rojo cereza, fucsia o rosa brillante"
+        ],
+        "Invierno Frío": [
+            "Base con subtono rosado y acabado mate",
+            "Colorete en tonos rosa frío o malva",
+            "Sombras en tonos gris, azul acero o púrpura",
+            "Labiales en tonos rojo frío, ciruela o rosa intenso"
+        ]
+    }
+    return maquillaje.get(subestacion, ["Usa tonos neutros y adaptados a tu estilo."])
+
+
+def recomendaciones_maquillaje_ojos(color_ojos):
+    ojos = color_ojos.lower()
+
+    if ojos in ["blue", "blue gray"]:
+        return [
+            "Sombras en tonos cálidos como cobre, bronce y dorado",
+            "Evita sombras azules similares al iris",
+            "Delineador marrón oscuro o negro para mayor contraste"
+        ]
+
+    elif ojos in ["green", "green gray"]:
+        return [
+            "Sombras en tonos ciruela, vino, rojizos o dorados",
+            "Evita verdes similares al iris para evitar uniformidad",
+            "Delineador negro o morado oscuro para resaltar"
+        ]
+
+    elif ojos in ["brown", "brown gray", "brown black"]:
+        return [
+            "Sombras en tonos azul marino, verde esmeralda, dorado o berenjena",
+            "Puedes experimentar con una gran variedad de tonos",
+            "Delineador negro intenso o violeta oscuro para mayor impacto"
+        ]
+
+    elif ojos == "other":
+        return [
+            "Sombras en tonos universales como bronce, gris topo o champán",
+            "Evita contrastes extremos si el tono del ojo es muy claro",
+            "Delineador gris oscuro o marrón suave"
+        ]
+
     else:
-        return "Verano Suave"  # Valor por defecto
+        return ["Color de ojos no reconocido. Usa tonos neutros como marrón, bronce o gris."]
 
 
-def analizar_color(path_imagen):
-    imagen = cv2.imread(path_imagen)
-    if imagen is None:
+def analizar_imagen_completa(path_imagen):
+    imagen_bgr = cv2.imread(path_imagen)
+    if imagen_bgr is None:
         return {"error": "No se pudo leer la imagen"}
 
-    imagen_rgb = cv2.cvtColor(imagen, cv2.COLOR_BGR2RGB)
-
-    try:
-        resultado = detector.process(imagen_rgb)
-    except Exception as e:
-        return {"error": f"Fallo en el detector: {str(e)}"}
-
+    imagen_rgb = cv2.cvtColor(imagen_bgr, cv2.COLOR_BGR2RGB)
+    resultado = detector.process(imagen_rgb)
     if not resultado.detections:
         return {"error": "No se detectó rostro"}
 
-    h, w, _ = imagen.shape
+    h, w, _ = imagen_bgr.shape
+
     face_result = face_mesh.process(imagen_rgb)
     if not face_result.multi_face_landmarks:
-        return {"error": "No se detectaron landmarks para los ojos"}
+        return {"error": "No se detectaron landmarks"}
 
     puntos = face_result.multi_face_landmarks[0].landmark
 
-    # OJOS: línea entre pupila (469) y borde del iris (158)
-    # Coordenadas del iris derecho (contorno) para media circunferencia
-    iris_border_ids = [33, 133, 160, 159, 158, 157, 173]  # párpado superior e inferior
-    pts = np.array([(int(puntos[i].x * w), int(puntos[i].y * h)) for i in iris_border_ids])
+    # PIEL
+    puntos_mejilla_ids = [117, 346, 425, 205]
+    puntos_mejilla = np.array([[int(puntos[pid].x * w), int(puntos[pid].y * h)] for pid in puntos_mejilla_ids])
 
-    # Máscara sobre el contorno del iris
+    # Crear máscara para el polígono
     mask = np.zeros((h, w), dtype=np.uint8)
-    cv2.fillPoly(mask, [pts], 255)
+    cv2.fillConvexPoly(mask, puntos_mejilla, 255)
 
-    # Aplicar máscara y extraer color
-    iris_roi = cv2.bitwise_and(imagen, imagen, mask=mask)
-    valores = iris_roi[np.where(mask == 255)]
-    color_ojos = np.mean(valores, axis=0) if len(valores) > 0 else np.array([128, 128, 128])
+    # Extraer píxeles dentro del polígono
+    region = imagen_bgr.copy()
+    region_masked = cv2.bitwise_and(region, region, mask=mask)
 
-    # PIEL: mejilla derecha con landmarks 234, 93, 132
-    mejilla_point = puntos[234]  # izquierda; usa 454 para la derecha
-    cx, cy = int(mejilla_point.x * w), int(mejilla_point.y * h)
-    region_mejilla = imagen[cy - 10:cy + 10, cx - 10:cx + 10]
-    color_piel = _extraer_color_dominante(region_mejilla)
+    # Extraer color dominante
+    color_piel = _extraer_color_dominante(region_masked)
 
-    # PELO: zona superior de la frente, landmark 10
-    px = int(puntos[10].x * w)
-    py = int(puntos[10].y * h)
-    region_pelo = imagen[max(py - 40, 0):max(py - 20, 0), max(px - 20, 0):min(px + 20, w)]
-    color_pelo = _extraer_color_dominante(region_pelo)
-
+    # Clasificar el tono
     tono_piel = "claro" if np.mean(color_piel) > 170 else "oscuro" if np.mean(color_piel) < 100 else "medio"
-    subtono_piel = _clasificar_subtono(color_piel)
-    subtono_pelo = _clasificar_subtono(color_pelo)
-    subtono_ojos = _clasificar_subtono(color_ojos)
 
-    subestacion = determinar_subestacion(tono_piel, subtono_piel, subtono_pelo, subtono_ojos)
+    # Dibujar polígono rojo sobre la imagen
+    cv2.polylines(imagen_bgr, [puntos_mejilla], isClosed=True, color=(0, 0, 255), thickness=2)
+
+    # PELO
+    try:
+        color_pelo_nombre = detect_hair_color(path_imagen, visualize=False)
+    except Exception as e:
+        return {"error": f"Error detectando color de pelo: {str(e)}"}
+
+    try:
+        color_ojos = detect_eye_color(path_imagen, visualize=False)
+    except Exception as e:
+        return {"error": f"Error detectando color de pelo: {str(e)}"}
+
+
+    maquillaje_ojos = recomendaciones_maquillaje_ojos(color_ojos)
+    subestacion = determinar_subestacion(tono_piel, color_pelo_nombre, color_ojos)
+    maquillaje = recomendaciones_maquillaje_por_subestacion(subestacion)
     colores_recomendados = colores_por_subestacion(subestacion)
 
     return {
         "tono_piel": tono_piel,
-        "subtono_piel": subtono_piel,
-        "subtono_pelo": subtono_pelo,
-        "subtono_ojos": subtono_ojos,
+        "color_pelo": color_pelo_nombre,
+        "color_ojos": color_ojos,
         "subestacion": subestacion,
-        "color_piel_rgb": color_piel.tolist(),
-        "color_pelo_rgb": color_pelo.tolist(),
-        "color_ojos_rgb": color_ojos.tolist(),
-        "colores_recomendados": colores_recomendados
+        "colores_recomendados": colores_recomendados,
+        "maquillaje": maquillaje,
+        "maquillaje_ojos": maquillaje_ojos
     }
+
+
 

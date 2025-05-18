@@ -218,21 +218,134 @@ class _AsistenteBellezaContentState extends State<_AsistenteBellezaContent> {
               }),
 
               const SizedBox(height: 12),
-              _botonRecomendacion("Estilo de corte de pelo ", () {
+              _botonRecomendacion("Estilo de corte de pelo", () {
                 _mostrarDialogo(
                   context,
                   "Estilo de corte de pelo",
-                  Text(vm.peinados ?? "No hay recomendaciones disponibles."),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (vm.formaRostro != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8.0),
+                          child: Text(
+                            'Forma de rostro detectada: ${vm.formaRostro}',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      if (vm.recomendacionesCortes.isNotEmpty)
+                        ...vm.recomendacionesCortes.map(
+                          (e) => Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2.0),
+                            child: Text("• $e"),
+                          ),
+                        ),
+                      if (vm.formaRostro == null &&
+                          vm.recomendacionesCortes.isEmpty)
+                        const Text("No hay recomendaciones disponibles."),
+                    ],
+                  ),
                 );
               }),
+
+              const SizedBox(height: 12),
+              _botonRecomendacion("Peinados recomendados", () {
+                _mostrarDialogo(
+                  context,
+                  "Peinados recomendados",
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (vm.formaRostro != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8.0),
+                          child: Text(
+                            'Forma de rostro detectada: ${vm.formaRostro}',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      if (vm.recomendacionesPeinados.isNotEmpty)
+                        ...vm.recomendacionesPeinados.map(
+                          (e) => Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2.0),
+                            child: Text("• $e"),
+                          ),
+                        ),
+                      if (vm.formaRostro == null &&
+                          vm.recomendacionesPeinados.isEmpty)
+                        const Text("No hay recomendaciones disponibles."),
+                    ],
+                  ),
+                );
+              }),
+
               const SizedBox(height: 12),
               _botonRecomendacion("Consejos de maquillaje", () {
                 _mostrarDialogo(
                   context,
-                  "Makeup Tips",
-                  Text(vm.maquillaje ?? "No hay recomendaciones disponibles."),
+                  "Estilo de maquillaje",
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (vm.subEstacion != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8.0),
+                          child: Text(
+                            'Subestación detectada: ${vm.subEstacion}',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+
+                      if (vm.recomendacionesMaquillaje.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 6.0),
+                          child: Text(
+                            'Recomendaciones generales:',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                        ),
+                      ...vm.recomendacionesMaquillaje.map(
+                        (e) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2.0),
+                          child: Text("• $e"),
+                        ),
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      if (vm.recomendacionesMaquillajeOjos.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 6.0, top: 6.0),
+                          child: Text(
+                            'Maquillaje para ojos:',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                        ),
+                      ...vm.recomendacionesMaquillajeOjos.map(
+                        (e) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2.0),
+                          child: Text("• $e"),
+                        ),
+                      ),
+
+                      if (vm.subEstacion == null &&
+                          vm.recomendacionesMaquillaje.isEmpty &&
+                          vm.recomendacionesMaquillajeOjos.isEmpty)
+                        const Text("No hay recomendaciones disponibles."),
+                    ],
+                  ),
                 );
               }),
+
               const SizedBox(height: 32),
             ],
           ),
