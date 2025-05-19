@@ -43,7 +43,7 @@ class PerfilUsuarioViewModel extends ChangeNotifier {
       );
       final pubRes = await httpGetConAuth(urlPub);
       if (pubRes.statusCode == 200) {
-        print('⚠️ DEBUG pubRes.body = ${pubRes.body}');
+        print('DEBUG pubRes.body = ${pubRes.body}');
 
         final dataPub = jsonDecode(pubRes.body);
         publicaciones = List<PostModel>.from(
@@ -56,7 +56,7 @@ class PerfilUsuarioViewModel extends ChangeNotifier {
       final urlPrenda = Uri.parse('$baseURL/prendas/usuario/$userId');
       final prendaRes = await httpGetConAuth(urlPrenda);
       if (prendaRes.statusCode == 200) {
-        print('⚠️ DEBUG prendaRes.body = ${prendaRes.body}');
+        print(' DEBUG prendaRes.body = ${prendaRes.body}');
 
         final dataPrenda = jsonDecode(prendaRes.body);
         prendas = List<Prenda>.from(dataPrenda.map((p) => Prenda.fromJson(p)));

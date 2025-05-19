@@ -38,7 +38,7 @@ def buscar():
         resultados_usuarios.append({
             'id': u.id,
             'username': u.username,
-            'foto_perfil': f"{current_app.config['BASE_URL']}{u.foto_perfil}" if u.foto_perfil else None,
+            'foto_perfil': u.foto_perfil,
             'tipo': tipo,
             'estado': estado,
             'estado_seguidor': estado_seguidor

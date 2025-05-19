@@ -127,16 +127,19 @@ class _SearchScreenState extends State<SearchScreen> {
                             ),
                           ...vm.usuarios.map(
                             (usuario) => ListTile(
-                              leading: CircleAvatar(
-                                backgroundImage:
-                                    usuario.fotoPerfil != null
-                                        ? NetworkImage(usuario.fotoPerfil!)
-                                        : null,
-                                child:
-                                    usuario.fotoPerfil == null
-                                        ? const Icon(Icons.person)
-                                        : null,
-                              ),
+                              leading:
+                                  usuario.fotoPerfil != null
+                                      ? CircleAvatar(
+                                        backgroundImage:
+                                            usuario.fotoPerfil != null
+                                                ? NetworkImage(
+                                                  '$baseURL${usuario.fotoPerfil}',
+                                                )
+                                                : null,
+                                      )
+                                      : const CircleAvatar(
+                                        child: Icon(Icons.person),
+                                      ),
                               onTap: () {
                                 Navigator.push(
                                   context,

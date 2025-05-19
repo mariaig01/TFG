@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../viewmodels/notifications_viewmodel.dart';
+import '../env.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -29,7 +30,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       appBar: AppBar(
         title: const Text("Notificaciones"),
         backgroundColor: const Color(0xFFFFB5B2),
-        foregroundColor: Colors.white,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
@@ -44,7 +44,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               setState(() => selectedIndex = index);
             },
             borderRadius: BorderRadius.circular(20),
-            selectedColor: Colors.white,
             fillColor: const Color(0xFFFFB5B2),
             color: Colors.black87,
             children: const [
@@ -96,13 +95,57 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               leading: CircleAvatar(
                 backgroundImage:
                     s["foto_perfil"] != null
-                        ? NetworkImage(s["foto_perfil"])
+                        ? NetworkImage('$baseURL${s["foto_perfil"]}')
                         : null,
                 child:
                     s["foto_perfil"] == null ? const Icon(Icons.person) : null,
               ),
               title: Text(s["username"] ?? "Usuario desconocido"),
-              subtitle: Text("Solicitud de $tipo"),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Solicitud de $tipo"),
+                  if (s["tipo"] == "prenda")
+                    Text(
+                      "Prenda: ${s["prenda"]?["nombre"] ?? ""}",
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                ],
+              ),
+              onTap: () {
+                if (s["tipo"] == "prenda" && s["prenda"] != null) {
+                  final prenda = s["prenda"];
+                  showDialog(
+                    context: context,
+                    builder:
+                        (_) => AlertDialog(
+                          title: Text(
+                            "Prenda: ${prenda["nombre"] ?? "Prenda"}",
+                          ),
+
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (prenda["imagen_url"] != null)
+                                Image.network(
+                                  '$baseURL${prenda["imagen_url"]}',
+                                  height: 150,
+                                  fit: BoxFit.cover,
+                                )
+                              else
+                                const Text("Sin imagen disponible"),
+                            ],
+                          ),
+                          actions: [
+                            TextButton(
+                              child: const Text("Cerrar"),
+                              onPressed: () => Navigator.pop(context),
+                            ),
+                          ],
+                        ),
+                  );
+                }
+              },
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -121,7 +164,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       );
                     },
                   ),
-
                   IconButton(
                     icon: const Icon(Icons.close, color: Colors.red),
                     onPressed: () async {

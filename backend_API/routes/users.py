@@ -9,59 +9,6 @@ import uuid
 
 users_bp = Blueprint('users', __name__, url_prefix='/usuarios')
 
-#no se usa actualmente en el frontend
-@users_bp.route('/seguidos-y-amigos', methods=['GET'])
-@jwt_required()
-def obtener_seguidos_y_amigos():
-    id_actual = int(get_jwt_identity())
-
-    # ——— SEGUIDOS (que NO son amigos) ———
-    seguidos = db.session.query(User, Seguimiento).join(
-        Seguimiento, Seguimiento.id_seguido == User.id
-    ).filter(
-        Seguimiento.id_seguidor == id_actual,
-        Seguimiento.tipo != 'amigo',
-        Seguimiento.estado == 'aceptada'
-    ).all()
-
-    seguidos_list = [{
-        'id': u.id,
-        'username': u.username,
-        'nombre': u.nombre,
-        'apellido': u.apellido,
-        'foto_perfil': f"{current_app.config['BASE_URL']}{u.foto_perfil}" if u.foto_perfil else None,
-        'tipo': s.tipo
-    } for u, s in seguidos]
-
-    # ——— AMIGOS (una sola vez por relación) ———
-    amigos_raw = db.session.query(Seguimiento).filter(
-        Seguimiento.tipo == 'amigo',
-        Seguimiento.estado == 'aceptada'
-    ).filter(
-        ((Seguimiento.id_seguidor == id_actual) & (Seguimiento.id_seguido > id_actual)) |
-        ((Seguimiento.id_seguidor < id_actual) & (Seguimiento.id_seguido == id_actual))
-    ).all()
-
-    amigos_list = []
-    for s in amigos_raw:
-        # Determinar el otro usuario de la amistad
-        otro_id = s.id_seguidor if s.id_seguidor != id_actual else s.id_seguido
-        user = User.query.get(otro_id)
-        if user:
-            amigos_list.append({
-                'id': user.id,
-                'username': user.username,
-                'nombre': user.nombre,
-                'apellido': user.apellido,
-                'foto_perfil': f"{current_app.config['BASE_URL']}{user.foto_perfil}" if user.foto_perfil else None,
-                'tipo': 'amigo'
-            })
-
-    return jsonify({
-        'seguidos': seguidos_list,
-        'amigos': amigos_list
-    }), 200
-
 
 @users_bp.route('/solicitud', methods=['POST'])
 @jwt_required()
@@ -108,8 +55,6 @@ def enviar_solicitud():
         })
 
     return jsonify({'message': f'Solicitud de {tipo} enviada correctamente'}), 201
-
-
 
 
 
@@ -301,11 +246,12 @@ def solicitudes_recibidas():
             continue
 
         resultado.append({
-            'id': sp.id,  # ID de la solicitud (no del usuario)
+            'id': sp.id,  # ID de la solicitud
             'username': remitente.username,
             'foto_perfil': remitente.foto_perfil,
             'tipo': 'prenda',
-            'fecha': sp.fecha_solicitud.isoformat()
+            'fecha': sp.fecha_solicitud.isoformat(),
+            'prenda': prenda.to_dict() if prenda else None
         })
 
     return jsonify(resultado), 200
@@ -510,7 +456,7 @@ def prendas_guardadas():
             'precio': float(p.precio),
             'talla': p.talla,
             'color': p.color,
-            'tipo': p.tipo,
+            'tipo': p.tipo.value,
             'imagen_url': f"{current_app.config['BASE_URL']}{p.imagen_url}" if p.imagen_url else None,
             'solicitable': p.solicitable,
             'fecha_agregado': p.fecha_agregado.isoformat(),
